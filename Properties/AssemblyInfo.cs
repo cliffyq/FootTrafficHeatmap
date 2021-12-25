@@ -10,7 +10,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Microsoft IT")]
 [assembly: AssemblyProduct("TrafficHeatmap")]
-[assembly: AssemblyCopyright("Copyright © Microsoft IT 2021")]
+[assembly: AssemblyCopyright("Copyright © Cliffyq 2021")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
