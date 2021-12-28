@@ -51,14 +51,21 @@
       <HintPath>..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\RimWorld\RimWorldWin64_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\RimWorld\RimWorldWin64_Data\Managed\UnityEngine.IMGUIModule.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="PatchPlaySettings.cs" />
+    <Compile Include="Patch.cs" />
     <Compile Include="Test.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="TrafficHeatmap.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="ModData\About\About.xml" />
     <Content Include="ModData\About\Preview.png" />
+    <Content Include="ModData\Textures\icon.png" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="ModData\Assemblies\" />
