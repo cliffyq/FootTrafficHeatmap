@@ -1,4 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -9,22 +12,20 @@ namespace TrafficHeatmap
     {
         public static bool ShowHeatMap;
         public static bool ShowHeatMapCost;
-        readonly float[] heatmap;
+        readonly Dictionary<Pawn, float[]> pawnToCostMap = new Dictionary<Pawn, float[]>();
+        readonly Predicate<Pawn> pawnFilter = (p) => true;
         readonly CellBoolDrawer cellBoolDrawer;
         Gradient gradient;
         float maxCost = 0.01f;
         float precision;
         int windowSizeTicks;
         int lastUpdatedAt;
+        Stopwatch sw = new Stopwatch();
+        double cellBoolDrawerUpdateAvgTicks, updateAvgTicks;
+        int cellBoolDrawerUpdateCount, updateCount;
 
         public TrafficHeatmap(Map map) : base(map)
         {
-            int n = map.cellIndices.NumGridCells;
-            this.heatmap = new float[n];
-            for (int i = 0; i < n; i++)
-            {
-                this.heatmap[i] = 0;
-            }
             this.cellBoolDrawer = new CellBoolDrawer(this, map.Size.x, map.Size.z);
             this.gradient = this.GetGradient();
             this.windowSizeTicks = GenDate.TicksPerDay;
@@ -35,12 +36,12 @@ namespace TrafficHeatmap
 
         public bool GetCellBool(int index)
         {
-            return this.heatmap[index] > this.precision;
+            return this.GetFilteredCostMaps().Any(kv => kv.Value[index] > this.precision);
         }
 
         public Color GetCellExtraColor(int index)
         {
-            return this.GetColorForCost(this.heatmap[index]);
+            return this.GetColorForCost(this.GetFilteredTotalCost(index));
         }
 
         public override void MapComponentUpdate()
@@ -49,7 +50,12 @@ namespace TrafficHeatmap
             if (ShowHeatMap)
             {
                 this.cellBoolDrawer.MarkForDraw();
+                this.sw.Restart();
                 this.cellBoolDrawer.CellBoolDrawerUpdate();
+                this.sw.Stop();
+                var ticks = this.sw.ElapsedTicks;
+                double coefficient = (double)1 / (++this.cellBoolDrawerUpdateCount);
+                this.cellBoolDrawerUpdateAvgTicks = this.cellBoolDrawerUpdateAvgTicks * (1 - coefficient) + coefficient * ticks;
             }
         }
 
@@ -59,20 +65,22 @@ namespace TrafficHeatmap
             base.MapComponentOnGUI();
             if (ShowHeatMapCost)
             {
-                for (int i = 0; i < this.heatmap.Length; i++)
+                for (int i = 0; i < this.map.cellIndices.NumGridCells; i++)
                 {
-                    if (this.heatmap[i] > this.precision)
+                    float totalFilteredCost = this.GetFilteredTotalCost(i);
+                    if (totalFilteredCost > this.precision)
                     {// TODO: center text when camera is close, see DebugDrawerOnGUI()
-                        Text.Font = GameFont.Tiny;
                         var cell = this.map.cellIndices.IndexToCell(i);
                         var drawTopLeft = GenMapUI.LabelDrawPosFor(cell);
                         var labelRect = new Rect(drawTopLeft.x, drawTopLeft.y, 20f, 20f);
-                        Widgets.Label(labelRect, (this.heatmap[i] / this.maxCost).ToString());
-
-                        Log.Message($"Cell:{cell}, {(this.heatmap[i] / this.maxCost).ToString()}");
+                        Widgets.Label(labelRect, (totalFilteredCost / this.maxCost).ToString());
                     }
                 }
             }
+
+            Widgets.Label(new Rect(10, Screen.height * 1 / 3f, 300, 300),
+                       $"CellBoolDrawerUpdate avg ticks: {this.cellBoolDrawerUpdateAvgTicks:N0}\n" +
+                       $"Update avg ticks: {this.updateAvgTicks:N0}\n");
         }
 #endif
 
@@ -81,15 +89,27 @@ namespace TrafficHeatmap
             return this.gradient.Evaluate(Math.Min(cost / this.maxCost, 1f));
         }
 
+        private IEnumerable<KeyValuePair<Pawn, float[]>> GetFilteredCostMaps()
+        {
+            return this.pawnToCostMap.Where(kv => this.pawnFilter(kv.Key));
+        }
+
+        private float GetFilteredTotalCost(int index)
+        {
+            return this.GetFilteredCostMaps().Sum(kv => kv.Value[index]);
+        }
+
         Gradient GetGradient()
         {
             var gradient = new Gradient();
 
-            var colorKey = new GradientColorKey[2];
-            colorKey[0].color = new Color(0.2f, 0.2f, 0.8f);
+            var colorKey = new GradientColorKey[3];
+            colorKey[0].color = Color.blue;
             colorKey[0].time = 0f;
-            colorKey[1].color = new Color(1f, 0.1f, 0f);
-            colorKey[1].time = 1f;
+            colorKey[1].color = Color.yellow;
+            colorKey[1].time = 0.5f;
+            colorKey[2].color = Color.red;
+            colorKey[2].time = 1f;
 
             var alphaKey = new GradientAlphaKey[2];
             alphaKey[0].alpha = 1f;
@@ -103,21 +123,42 @@ namespace TrafficHeatmap
 
         internal void Update(Pawn pawn, float cost)
         {
+            this.sw.Restart();
             int index = this.map.cellIndices.CellToIndex(pawn.Position);
             int curTick = Find.TickManager.TicksGame;
             double coefficient = (double)1 / this.windowSizeTicks;
-            if (this.lastUpdatedAt > 0)
+            if (this.lastUpdatedAt != curTick)
             {
-                for (int i = 0; i < this.heatmap.Length; i++)
+                foreach (var value in this.pawnToCostMap.Values)
                 {
-                    if (this.heatmap[i] > this.precision)
+                    for (int i = 0; i < value.Length; i++)
                     {
-                        this.heatmap[i] *= (float)Math.Pow(1 - coefficient, curTick - this.lastUpdatedAt);
+                        if (value[i] > this.precision)
+                        {
+                            value[i] *= (float)Math.Pow(1 - coefficient, curTick - this.lastUpdatedAt);
+                        }
                     }
                 }
             }
-            this.heatmap[index] += (float)(cost * coefficient);
+            float[] mapForCurPawn;
+            if (!this.pawnToCostMap.TryGetValue(pawn, out mapForCurPawn))
+            {
+                int n = this.map.cellIndices.NumGridCells;
+                mapForCurPawn = new float[n];
+                for (int i = 0; i < n; i++)
+                {
+                    mapForCurPawn[i] = 0;
+                }
+                this.pawnToCostMap.Add(pawn, mapForCurPawn);
+            }
+            mapForCurPawn[index] += (float)(cost * coefficient);
             this.lastUpdatedAt = curTick;
+
+            this.sw.Stop();
+            var ticks = this.sw.ElapsedTicks;
+            double coefficient1 = (double)1 / (++this.updateCount);
+            this.updateAvgTicks = this.updateAvgTicks * (1 - coefficient1) + coefficient1 * ticks;
+
             this.cellBoolDrawer.SetDirty();
         }
     }
