@@ -21,8 +21,10 @@ namespace TrafficHeatmap
                     if ((locomotionUrgencySameAs != null && locomotionUrgencySameAs != ___pawn && locomotionUrgencySameAs.Spawned) ||
                         (urgency != LocomotionUrgency.Amble && urgency != LocomotionUrgency.Walk))
                     {
-                        var heatmap = ___pawn.Map.GetComponent<TrafficHeatmap>();
-                        heatmap.Update(___pawn, ___nextCellCostTotal);
+                        //var heatmap = ___pawn.Map.GetComponent<TrafficHeatmap>();
+                        //heatmap.Update(___pawn, ___nextCellCostTotal);
+                        var heatmap1 = ___pawn.Map.GetComponent<TrafficHeatmapFixedSampleRate>();
+                        heatmap1.Update(___pawn, ___nextCellCostTotal);
                     }
                 }
                 //Log.Message($"SetupMoveIntoNextCell. Pawn: {___pawn}, curJobDef: {___pawn.CurJobDef.defName}, pawn position : {___pawn.Position}, locamotionUrgency: {GetLocomotionUrgency(___pawn)}, last cell: {___lastCell}, next cell: {___nextCell}, next cell cost total: {___nextCellCostTotal}, tick:{Find.TickManager.TicksGame}");

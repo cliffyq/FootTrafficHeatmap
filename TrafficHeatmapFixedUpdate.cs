@@ -7,24 +7,26 @@
 
 //namespace TrafficHeatmap
 //{
-//    public class TrafficHeatmap : MapComponent, ICellBoolGiver
+//    public class TrafficHeatmapFixedUpdate : MapComponent, ICellBoolGiver
 //    {
 //        public static bool ShowHeatMap, ShowHeatMapCost;
-//        readonly Dictionary<Pawn, float[]> pawnToCostMap = new Dictionary<Pawn, float[]>();
+//        readonly Dictionary<Pawn, CostMap> pawnToCostMap = new Dictionary<Pawn, CostMap>();
 //        float[] filteredTotalCostMap;
 //        readonly Predicate<Pawn> shouldShowFor = (p) => true;
 //        readonly CellBoolDrawer cellBoolDrawer;
 //        Gradient gradient;
 //        float maxCost = 0.01f;
 //        float precision;
+//        float coefficient;
 //        int windowSizeTicks;
-//        int lastUpdatedAt;
+//        int lastGlobalFalloffAt;
+//        int fallOffInterval = 100;
 //        int numGridCells;
 //        Stopwatch sw = new Stopwatch();
-//        double cellBoolDrawerUpdateAvgTicks, updateAvgTicks;
-//        int cellBoolDrawerUpdateCount, updateCount;
+//        double cellBoolDrawerUpdateAvgTicks, updateAvgTicks, globalFalloffAvgTicks;
+//        int cellBoolDrawerUpdateCount, updateCount, globalFalloffCount;
 
-//        public TrafficHeatmap(Map map) : base(map)
+//        public TrafficHeatmapFixedUpdate(Map map) : base(map)
 //        {
 //            this.cellBoolDrawer = new CellBoolDrawer(this, map.Size.x, map.Size.z);
 //            this.gradient = this.GetGradient();
@@ -32,6 +34,7 @@
 //            this.precision = 1f / this.windowSizeTicks;
 //            this.numGridCells = this.map.cellIndices.NumGridCells;
 //            this.filteredTotalCostMap = new float[this.numGridCells];
+//            this.coefficient = 1f / this.windowSizeTicks;
 //            for (int i = 0; i < this.numGridCells; i++)
 //            {
 //                this.filteredTotalCostMap[i] = 0;
@@ -53,6 +56,26 @@
 //        public override void MapComponentUpdate()
 //        {
 //            base.MapComponentUpdate();
+//            int curTick = Find.TickManager.TicksGame;
+//            if (curTick > this.lastGlobalFalloffAt + this.fallOffInterval)
+//            {
+//                this.sw.Restart();
+//                this.FalloffForAll(this.coefficient, this.precision, curTick);
+
+//                for (int i = 0; i < this.filteredTotalCostMap.Length; i++)
+//                {
+//                    if (this.filteredTotalCostMap[i] > this.precision)
+//                    {
+//                        this.filteredTotalCostMap[i] *= (float)Math.Pow(1 - this.coefficient, curTick - this.lastGlobalFalloffAt);
+//                    }
+//                }
+//                this.lastGlobalFalloffAt = curTick;
+
+//                this.sw.Stop();
+//                var ticks = this.sw.ElapsedTicks;
+//                double coefficient = (double)1 / (++this.globalFalloffCount);
+//                this.globalFalloffAvgTicks = this.globalFalloffAvgTicks * (1 - coefficient) + coefficient * ticks;
+//            }
 //            if (ShowHeatMap)
 //            {
 //                this.cellBoolDrawer.MarkForDraw();
@@ -77,15 +100,16 @@
 //                    {// TODO: center text when camera is close, see DebugDrawerOnGUI()
 //                        var cell = this.map.cellIndices.IndexToCell(i);
 //                        var drawTopLeft = GenMapUI.LabelDrawPosFor(cell);
-//                        var labelRect = new Rect(drawTopLeft.x - 20f, drawTopLeft.y - 20f, 40f, 20f);
+//                        var labelRect = new Rect(drawTopLeft.x - 20f, drawTopLeft.y, 40f, 20f);
 //                        Widgets.Label(labelRect, (totalFilteredCost / this.maxCost).ToString());
 //                    }
 //                }
 //            }
 
-//            Widgets.Label(new Rect(10, Screen.height * 1 / 3f, 300, 300),
+//            Widgets.Label(new Rect(10, Screen.height * 3 / 5f, 300, 300),
 //                       $"{this.GetType().Name} CellBoolDrawerUpdate avg ticks: {this.cellBoolDrawerUpdateAvgTicks:N0}\n" +
-//                       $"{this.GetType().Name} Update avg ticks: {this.updateAvgTicks:N0}\n");
+//                       $"{this.GetType().Name} Update avg ticks: {this.updateAvgTicks:N0}\n" +
+//                       $"{this.GetType().Name} GlobalFalloff avg ticks: {this.globalFalloffAvgTicks:N0}\n");
 //        }
 
 //        private Color GetColorForCost(float cost)
@@ -130,43 +154,16 @@
 //            this.sw.Restart();
 //            int index = this.map.cellIndices.CellToIndex(pawn.Position);
 //            int curTick = Find.TickManager.TicksGame;
-//            float coefficient = 1f / this.windowSizeTicks;
-//            if (this.lastUpdatedAt != curTick)
+//            if (!this.pawnToCostMap.TryGetValue(pawn, out CostMap mapForCurPawn))
 //            {
-//                foreach (var value in this.pawnToCostMap.Values)
-//                {
-//                    for (int i = 0; i < value.Length; i++)
-//                    {
-//                        if (value[i] > this.precision)
-//                        {
-//                            value[i] *= (float)Math.Pow(1 - coefficient, curTick - this.lastUpdatedAt);
-//                        }
-//                    }
-//                }
-//                for (int i = 0; i < this.filteredTotalCostMap.Length; i++)
-//                {
-//                    if (this.filteredTotalCostMap[i] > this.precision)
-//                    {
-//                        this.filteredTotalCostMap[i] *= (float)Math.Pow(1 - coefficient, curTick - this.lastUpdatedAt);
-//                    }
-//                }
-//            }
-//            this.lastUpdatedAt = curTick;
-//            float[] mapForCurPawn;
-//            if (!this.pawnToCostMap.TryGetValue(pawn, out mapForCurPawn))
-//            {
-//                mapForCurPawn = new float[this.numGridCells];
-//                for (int i = 0; i < this.numGridCells; i++)
-//                {
-//                    mapForCurPawn[i] = 0;
-//                }
+//                mapForCurPawn = new CostMap(this.numGridCells, curTick);
 //                this.pawnToCostMap.Add(pawn, mapForCurPawn);
 //            }
-//            mapForCurPawn[index] += cost * coefficient;
+//            mapForCurPawn.UpdateCostAtIndex(index, cost, this.coefficient, this.precision, curTick);
 
 //            if (this.shouldShowFor(pawn))
 //            {
-//                this.filteredTotalCostMap[index] += cost * coefficient;
+//                this.filteredTotalCostMap[index] += cost * this.coefficient;
 //            }
 
 //            this.sw.Stop();
@@ -175,6 +172,62 @@
 //            this.updateAvgTicks = this.updateAvgTicks * (1 - coefficient1) + coefficient1 * ticks;
 
 //            this.cellBoolDrawer.SetDirty();
+//        }
+
+//        void FalloffForAll(float coefficient, float threshold, int curTick)
+//        {
+//            foreach (var costMap in this.pawnToCostMap.Values)
+//            {
+//                costMap.Falloff(coefficient, threshold, curTick);
+//            }
+
+//            this.cellBoolDrawer.SetDirty();
+//        }
+
+//        public class CostMap
+//        {
+//            float[] costMap;
+//            int lastFalloffTick { get; set; }
+
+//            public CostMap(int size, int curTick)
+//            {
+//                this.costMap = new float[size];
+//                for (int i = 0; i < size; i++)
+//                {
+//                    this.costMap[i] = 0;
+//                }
+//                this.lastFalloffTick = curTick;
+//            }
+
+//            public void Falloff(float coefficient, float threshold, int curTick)
+//            {
+//                if (this.lastFalloffTick != curTick)
+//                {
+//                    for (int i = 0; i < this.costMap.Length; i++)
+//                    {
+//                        this.FalloffSingleCell(coefficient, threshold, curTick, i);
+//                    }
+//                    this.lastFalloffTick = curTick;
+//                }
+//            }
+
+//            private void FalloffSingleCell(float coefficient, float threshold, int curTick, int index)
+//            {
+//                if (this.costMap[index] > threshold)
+//                {
+//                    this.costMap[index] *= (float)Math.Pow(1 - coefficient, curTick - this.lastFalloffTick);
+//                }
+//            }
+
+//            public void UpdateCostAtIndex(int index, float cost, float coefficient, float threshold, int curTick)
+//            {
+//                if (this.lastFalloffTick != curTick)
+//                {
+//                    this.FalloffSingleCell(coefficient, threshold, curTick, index);
+//                    this.lastFalloffTick = curTick;
+//                }
+//                this.costMap[index] += cost * coefficient;
+//            }
 //        }
 //    }
 //}
