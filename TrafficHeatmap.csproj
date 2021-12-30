@@ -59,6 +59,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="CellCostGrid.cs" />
     <Compile Include="PatchPlaySettings.cs" />
     <Compile Include="Patch.cs" />
     <Compile Include="Test.cs" />
