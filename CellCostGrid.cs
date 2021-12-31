@@ -5,8 +5,13 @@ namespace TrafficHeatmap
 {
     public class CellCostGrid : IExposable
     {
-        private readonly Map map;
+        private Map map;
+        private byte[] tmpArrayForScribe;
         public float[] Grid { get; set; }
+        public CellCostGrid()
+        {
+            Log.Message("CellCostGrid paramless ctor called");
+        }
 
         public CellCostGrid(Map map)
         {
@@ -16,10 +21,37 @@ namespace TrafficHeatmap
 
         public void ExposeData()
         {
-            MapExposeUtility.ExposeUshort(this.map, (IntVec3 c) => CellCostGrid.CellCostFloatToShort(this.GetCellCost(c)), delegate (IntVec3 c, ushort val)
+            Log.Message($"CellCostGrid.ExposeData Scribe.mode={Scribe.mode}");
+            Scribe_References.Look(ref this.map, "map");
+            Log.Message($"CellCostGrid.ExposeData Scribe.mode={Scribe.mode}");
+
+            if (this.map == null)
             {
-                this.Grid[this.map.cellIndices.CellToIndex(c)] = CellCostGrid.CellCostShortToFloat(val);
-            }, "grid");
+                Log.Message($"CellCostGrid.ExposeData map==null");
+            }
+
+            if (Scribe.mode == LoadSaveMode.Saving)
+            {
+                this.tmpArrayForScribe = MapSerializeUtility.SerializeUshort(this.map, (IntVec3 c) => CellCostGrid.CellCostFloatToShort(this.GetCellCost(c)));
+            }
+
+            DataExposeUtility.ByteArray(ref this.tmpArrayForScribe, "grid");
+
+            if (Scribe.mode == LoadSaveMode.PostLoadInit)
+            {
+                if (this.Grid == null)
+                {
+                    Log.Message($"CellCostGrid.ExposeData this.Grid==null, initing");
+                    this.Grid = new float[this.map.cellIndices.NumGridCells];
+                }
+
+                MapSerializeUtility.LoadUshort(this.tmpArrayForScribe, this.map, delegate (IntVec3 c, ushort val)
+                {
+                    this.Grid[this.map.cellIndices.CellToIndex(c)] = CellCostGrid.CellCostShortToFloat(val);
+                });
+                this.tmpArrayForScribe = null;
+                Log.Message($"CellCostGrid.ExposeData finalize {this.ToString()}");
+            }
         }
 
         private static float CellCostShortToFloat(ushort val)
@@ -50,6 +82,28 @@ namespace TrafficHeatmap
                 val = 1f;
             }
             return val;
+        }
+
+        public override string ToString()
+        {
+            string gridString, mapString;
+            if (this.Grid == null)
+            {
+                gridString = "null";
+            }
+            else
+            {
+                gridString = this.Grid.Length.ToString();
+            }
+            if (this.map == null)
+            {
+                mapString = "null";
+            }
+            else
+            {
+                mapString = this.map.ToString();
+            }
+            return $"Map: {mapString}, Grid size: {gridString}";
         }
     }
 }

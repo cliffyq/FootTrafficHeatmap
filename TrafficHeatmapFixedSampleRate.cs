@@ -11,12 +11,12 @@ namespace TrafficHeatmap
     public class TrafficHeatmapFixedSampleRate : MapComponent, ICellBoolGiver
     {
         public static bool ShowHeatMap, ShowHeatMapCost;
-        Dictionary<Pawn, CellCostGrid> singlePawnCellCostGrid = new Dictionary<Pawn, CellCostGrid>();
+        Dictionary<Pawn, CellCostGrid> pawnToCellCostGridMap = new Dictionary<Pawn, CellCostGrid>();
         private List<Pawn> tmpPawns;
         private List<CellCostGrid> tmpCellCostGrids;
-        float[] defaultTotalCellCostGrid, multiPawnsCellCostGrid;
+        float[] multiPawnsCellCostGrid;
         float[] CellCostGridToDisplay;
-        HashSet<Pawn> multiSelectedPawns = new HashSet<Pawn>();
+        HashSet<Pawn> multiPawnsToDisplayFor = new HashSet<Pawn>();
         readonly CellBoolDrawer cellBoolDrawer;
         Gradient gradient;
         float maxCost;
@@ -27,8 +27,9 @@ namespace TrafficHeatmap
         readonly int sampleInterval = 100;
         readonly int numGridCells;
         Stopwatch sw = new Stopwatch();
-        double cellBoolDrawerUpdateAvgTicks, updateAvgTicks, globalFalloffAvgTicks;
-        int cellBoolDrawerUpdateCount, updateCount, globalFalloffCount;
+        double cellBoolDrawerUpdateAvgTicks, updateAvgTicks, globalFalloffAvgTicks, dirtyUpdateAvgTicks, setDisplayTicks;
+        private bool dirty;
+        int cellBoolDrawerUpdateCount, updateCount, globalFalloffCount, dirtyUpdateCount, setDisplayCount;
 
         public TrafficHeatmapFixedSampleRate(Map map) : base(map)
         {
@@ -38,25 +39,34 @@ namespace TrafficHeatmap
             this.precision = 1f / this.windowSizeTicks;
             this.maxCost = this.precision;
             this.numGridCells = this.map.cellIndices.NumGridCells;
-            this.defaultTotalCellCostGrid = new float[this.numGridCells];
             this.multiPawnsCellCostGrid = new float[this.numGridCells];
-            this.CellCostGridToDisplay = this.defaultTotalCellCostGrid;
         }
 
         public override void ExposeData()
         {
             base.ExposeData();
-
-            Scribe_Collections.Look(ref this.singlePawnCellCostGrid, "singlePawnCellCostGrid", LookMode.Reference, LookMode.Deep, ref this.tmpPawns, ref this.tmpCellCostGrids);
+            Log.Message($"Scribe.mode={Scribe.mode}");
+            //Log.Message("Before:");
+            //LogVars();
+            Scribe_Collections.Look(ref this.pawnToCellCostGridMap, "singlePawnCellCostGrids", LookMode.Reference, LookMode.Deep, ref this.tmpPawns, ref this.tmpCellCostGrids);
+            //Log.Message("After:");
+            this.LogVars();
         }
 
-        private float GetDefaultTotalCost(IntVec3 c)
+        void LogVars()
         {
-            if (!c.InBounds(this.map))
+            if (this.pawnToCellCostGridMap == null)
             {
-                return 0f;
+                Log.Message("pawnToCellCostGridMap==null");
             }
-            return this.defaultTotalCellCostGrid[this.map.cellIndices.CellToIndex(c)];
+            else
+            {
+                Log.Message($"pawnToCellCostGridMap size {this.pawnToCellCostGridMap.Count}");
+            }
+            foreach (var kv in this.pawnToCellCostGridMap)
+            {
+                Log.Message($"Pawn={kv.Key}, Grid={kv.Value}");
+            }
         }
 
         public Color Color => Color.white;
@@ -71,12 +81,11 @@ namespace TrafficHeatmap
             return this.GetColorForCost(this.CellCostGridToDisplay[index]);
         }
 
-        public override void MapComponentUpdate()
+        public override void MapComponentTick()
         {
-            base.MapComponentUpdate();
+            base.MapComponentTick();
             int curTick = Find.TickManager.TicksGame;
-            // TODO: use ticks instead for accuraty when speeded up
-            if (curTick > this.lastGlobalDecayTick + this.sampleInterval)
+            if (curTick >= this.lastGlobalDecayTick + this.sampleInterval)
             {
                 this.sw.Restart();
                 this.GlobalDecay();
@@ -86,31 +95,48 @@ namespace TrafficHeatmap
                 var ticks = this.sw.ElapsedTicks;
                 double coefficient = (double)1 / (++this.globalFalloffCount);
                 this.globalFalloffAvgTicks = this.globalFalloffAvgTicks * (1 - coefficient) + coefficient * ticks;
-
-                this.UpdateStatistics();
             }
+        }
+
+        public override void MapComponentUpdate()
+        {
+            base.MapComponentUpdate();
+
             if (ShowHeatMap)
             {
-                this.sw.Restart();
                 this.SetCellCostGridToDisplay();
+                this.DirtyUpdate();
+                this.sw.Restart();
                 this.cellBoolDrawer.MarkForDraw();
                 this.cellBoolDrawer.CellBoolDrawerUpdate();
                 this.sw.Stop();
                 var ticks = this.sw.ElapsedTicks;
                 double coefficient = (double)1 / (++this.cellBoolDrawerUpdateCount);
                 this.cellBoolDrawerUpdateAvgTicks = this.cellBoolDrawerUpdateAvgTicks * (1 - coefficient) + coefficient * ticks;
+
+
             }
         }
 
-        private void UpdateStatistics()
+        private void DirtyUpdate()
         {
-            this.maxCost = this.CellCostGridToDisplay.Max();
-            this.cellBoolDrawer.SetDirty();
+            if (this.dirty)
+            {
+                this.sw.Restart();
+                this.dirty = false;
+                this.maxCost = this.CellCostGridToDisplay.Max();
+                this.cellBoolDrawer.SetDirty();
+
+                this.sw.Stop();
+                var ticks = this.sw.ElapsedTicks;
+                double coefficient = (double)1 / (++this.dirtyUpdateCount);
+                this.dirtyUpdateAvgTicks = this.dirtyUpdateAvgTicks * (1 - coefficient) + coefficient * ticks;
+            }
         }
 
         void DumpStats()
         {
-            foreach (var kv in this.singlePawnCellCostGrid)
+            foreach (var kv in this.pawnToCellCostGridMap)
             {
 
             }
@@ -118,43 +144,41 @@ namespace TrafficHeatmap
 
         private void SetCellCostGridToDisplay()
         {
-            var selectedPawns = Find.Selector.SelectedPawns;
-            var previousCellCostGridToDisplay = this.CellCostGridToDisplay;
-            if (selectedPawns.Count == 0 || !this.singlePawnCellCostGrid.ContainsKey(selectedPawns[0]))
+            this.sw.Restart();
+            List<Pawn> selectedPawns = Find.Selector.SelectedPawns;
+            if (selectedPawns.Count == 0 || !this.pawnToCellCostGridMap.ContainsKey(selectedPawns[0]))
             {
-                this.CellCostGridToDisplay = this.defaultTotalCellCostGrid;
+                this.UpdatePawnMultiSelection(this.pawnToCellCostGridMap.Keys);
+                this.CellCostGridToDisplay = this.multiPawnsCellCostGrid;
             }
-            else if (selectedPawns.Count == 1)
+            else if (selectedPawns.Count == 1 && this.CellCostGridToDisplay != this.pawnToCellCostGridMap[selectedPawns[0]].Grid)
             {
-                this.CellCostGridToDisplay = this.singlePawnCellCostGrid[selectedPawns[0]].Grid;
+                this.CellCostGridToDisplay = this.pawnToCellCostGridMap[selectedPawns[0]].Grid;
+                this.SetDirty();
             }
             else
             {
-                this.UpdatePawnMultiSelection(selectedPawns);
+                this.UpdatePawnMultiSelection(selectedPawns.Intersect(this.pawnToCellCostGridMap.Keys));
                 this.CellCostGridToDisplay = this.multiPawnsCellCostGrid;
             }
-            if (previousCellCostGridToDisplay != this.CellCostGridToDisplay)
-            {
-                this.UpdateStatistics();
-                this.cellBoolDrawer.SetDirty();
-            }
+            this.sw.Stop();
+            this.setDisplayTicks = this.sw.ElapsedTicks;
         }
 
-        private void UpdatePawnMultiSelection(List<Pawn> selectedPawns)
+        private void UpdatePawnMultiSelection(IEnumerable<Pawn> selected)
         {
-            var selected = selectedPawns.Intersect(this.singlePawnCellCostGrid.Keys).ToHashSet();
-            if (!selected.SetEquals(this.multiSelectedPawns))
+            if (!this.multiPawnsToDisplayFor.SetEquals(selected))
             {
-                this.multiSelectedPawns = selected;
+                this.multiPawnsToDisplayFor = selected.ToHashSet();
                 Array.Clear(this.multiPawnsCellCostGrid, 0, this.numGridCells);
                 foreach (Pawn pawn in selected)
                 {
                     for (int i = 0; i < this.numGridCells; i++)
                     {
-                        this.multiPawnsCellCostGrid[i] += this.singlePawnCellCostGrid[pawn].Grid[i];
+                        this.multiPawnsCellCostGrid[i] += this.pawnToCellCostGridMap[pawn].Grid[i];
                     }
                 }
-                this.cellBoolDrawer.SetDirty();
+                this.SetDirty();
             }
         }
 
@@ -181,6 +205,8 @@ namespace TrafficHeatmap
                        $"Update avg ticks: {this.updateAvgTicks:N0}\n" +
                        $"GlobalDecay avg ticks: {this.globalFalloffAvgTicks:N0}\n" +
                        $"Max cost: {this.maxCost}\n" +
+                       $"Dirty upgrade avg: {this.dirtyUpdateAvgTicks}\n" +
+                       $"Set display ticks: {this.setDisplayTicks}\n" +
                        $"Selected pawns: {String.Join(", ", Find.Selector.SelectedPawns)}\n");
         }
 
@@ -217,15 +243,14 @@ namespace TrafficHeatmap
         {
             this.sw.Restart();
             int index = this.map.cellIndices.CellToIndex(pawn.Position);
-            if (!this.singlePawnCellCostGrid.TryGetValue(pawn, out CellCostGrid gridForCurPawn))
+            if (!this.pawnToCellCostGridMap.TryGetValue(pawn, out CellCostGrid gridForCurPawn))
             {
                 gridForCurPawn = new CellCostGrid(this.map);
-                this.singlePawnCellCostGrid.Add(pawn, gridForCurPawn);
+                this.pawnToCellCostGridMap.Add(pawn, gridForCurPawn);
             }
             float costToAdd = cost * this.coefficient;
             gridForCurPawn.Grid[index] += costToAdd;
-            this.defaultTotalCellCostGrid[index] += costToAdd;
-            if (this.multiSelectedPawns.Contains(pawn))
+            if (this.multiPawnsToDisplayFor.Contains(pawn))
             {
                 this.multiPawnsCellCostGrid[index] += costToAdd;
             }
@@ -234,7 +259,12 @@ namespace TrafficHeatmap
             double coefficient1 = (double)1 / (++this.updateCount);
             this.updateAvgTicks = this.updateAvgTicks * (1 - coefficient1) + coefficient1 * ticks;
 
-            this.cellBoolDrawer.SetDirty();
+            this.SetDirty();
+        }
+
+        void SetDirty()
+        {
+            this.dirty = true;
         }
 
         void GlobalDecay()
@@ -244,11 +274,11 @@ namespace TrafficHeatmap
                 Log.Message("coefficient == 0");
             }
             float decayCoefficient = 1 - this.coefficient;
-            if (this.singlePawnCellCostGrid == null)
+            if (this.pawnToCellCostGridMap == null)
             {
                 Log.Message("singlePawnCellCostGrid == null");
             }
-            foreach (var CellCostGrid in this.singlePawnCellCostGrid.Values)
+            foreach (var CellCostGrid in this.pawnToCellCostGridMap.Values)
             {
                 for (int i = 0; i < this.numGridCells; i++)
                 {
@@ -258,20 +288,12 @@ namespace TrafficHeatmap
                     }
                 }
             }
-            if (this.defaultTotalCellCostGrid == null)
-            {
-                Log.Message("defaultTotalCellCostGrid == null");
-            }
             if (this.multiPawnsCellCostGrid == null)
             {
                 Log.Message("multiPawnsCellCostGrid == null");
             }
             for (int i = 0; i < this.numGridCells; i++)
             {
-                if (this.defaultTotalCellCostGrid[i] > this.precision)
-                {
-                    this.defaultTotalCellCostGrid[i] *= decayCoefficient;
-                }
                 if (this.multiPawnsCellCostGrid[i] > this.precision)
                 {
                     this.multiPawnsCellCostGrid[i] *= decayCoefficient;
@@ -281,7 +303,7 @@ namespace TrafficHeatmap
             {
                 Log.Message("cellBoolDrawer == null");
             }
-            this.cellBoolDrawer.SetDirty();
+            this.SetDirty();
         }
     }
 }
