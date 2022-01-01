@@ -10,6 +10,7 @@ namespace TrafficHeatmap
         private Map map;
         private float threshold;
         private byte[] tmpByteArrayForScribe;
+
         public CellCostGrid()
         {
             this.Normalizer = new MinMaxScalingNormalizer();
@@ -23,14 +24,6 @@ namespace TrafficHeatmap
             var mod = LoadedModManager.GetMod<TrafficHeatmapMod>();
             mod.Subscribe(this);
             this.UpdateFromSettings(mod.GetSettings<TrafficHeatmapModSettings>());
-        }
-
-        // // TODO: override finalizer only if 'Dispose(bool disposing)' has code to free unmanaged resources
-        ~CellCostGrid()
-        {
-            Log.Error("GC: CellCostGrid");
-            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
-            this.Dispose(disposing: false);
         }
 
         public GridNormalizer Normalizer { get; set; }
@@ -103,7 +96,6 @@ namespace TrafficHeatmap
             {
                 if (disposing)
                 {
-                    Log.Error("Disposing CellCostGrid");
                     LoadedModManager.GetMod<TrafficHeatmapMod>().Unsubscribe(this);
                     this.Normalizer.Dispose();
                 }
@@ -175,7 +167,6 @@ namespace TrafficHeatmap
 
         private void UpdateFromSettings(TrafficHeatmapModSettings settings)
         {
-            Log.Message($"CostGrid update from settings. C= {settings.coefficient}, t = {settings.minThreshold}, si = {settings.sampleInterval}");
             this.threshold = settings.minThreshold;
         }
     }

@@ -11,9 +11,9 @@ namespace TrafficHeatmap
     public class TrafficHeatmap : MapComponent, ICellBoolGiver, ISettingsObserver
     {
         public static bool ShowHeatMap, ShowHeatMapCost;
-        private readonly CellBoolDrawer cellBoolDrawer;
+        private CellBoolDrawer cellBoolDrawer;
         private float coefficient;
-        private readonly int numGridCells;
+        private int numGridCells;
         private int sampleInterval = 180;
         private float threshold;
         private double cellBoolDrawerUpdateAvgTicks, updateAvgTicks, globalFalloffAvgTicks, setDisplayTicks;
@@ -27,31 +27,24 @@ namespace TrafficHeatmap
         private Stopwatch sw = new Stopwatch();
         private List<CellCostGrid> tmpCellCostGrids;
         private List<Pawn> tmpPawns;
-        internal static Dictionary<Map, TrafficHeatmap> Instances { get; } = new Dictionary<Map, TrafficHeatmap>();
 
         public TrafficHeatmap(Map map) : base(map)
         {
-            if (!Instances.ContainsKey(map))
-            {
-                Instances[map] = this;
-                this.cellBoolDrawer = new CellBoolDrawer(this, map.Size.x, map.Size.z);
-                var mod = LoadedModManager.GetMod<TrafficHeatmapMod>();
-                mod.Subscribe(this);
-                this.UpdateFromSettings(mod.GetSettings<TrafficHeatmapModSettings>());
-                this.gradient = this.GetGradient();
-                this.numGridCells = this.map.cellIndices.NumGridCells;
-                this.multiPawnsCellCostGrid = new CellCostGrid(map);
-                this.cellCostGridToDisplay = this.multiPawnsCellCostGrid;
-            }
-            else
-            {
-                Log.Message("TrafficHeatmap instance already exisit");
-            }
+            Log.Message($"TrafficHeatmap ctor {this.GetHashCode()}");
         }
 
-        ~TrafficHeatmap()
+        public override void FinalizeInit()
         {
-            Log.Error("TrafficHeatmap GC");
+            base.FinalizeInit();
+            Log.Message($"TrafficHeatmap FinalizeInit {this.GetHashCode()}");
+            this.cellBoolDrawer = new CellBoolDrawer(this, this.map.Size.x, this.map.Size.z);
+            var mod = LoadedModManager.GetMod<TrafficHeatmapMod>();
+            mod.Subscribe(this);
+            this.UpdateFromSettings(mod.GetSettings<TrafficHeatmapModSettings>());
+            this.gradient = this.GetGradient();
+            this.numGridCells = this.map.cellIndices.NumGridCells;
+            this.multiPawnsCellCostGrid = new CellCostGrid(this.map);
+            this.cellCostGridToDisplay = this.multiPawnsCellCostGrid;
         }
 
         private void UpdateFromSettings(TrafficHeatmapModSettings settings)
@@ -61,7 +54,6 @@ namespace TrafficHeatmap
             this.threshold = settings.minThreshold;
             this.sampleInterval = settings.sampleInterval;
             this.cellBoolDrawer.SetDirty();
-            Log.Message($"Trafficheatmp update from settings. C= {settings.coefficient}, t = {settings.minThreshold}, si = {settings.sampleInterval}");
         }
 
         public Color Color => Color.white;
@@ -114,8 +106,7 @@ namespace TrafficHeatmap
         public override void MapRemoved()
         {
             base.MapRemoved();
-            Log.Message("Heatmap MapRemoved");
-            this.map = null;
+            Log.Message("Traffic Heatmap MapRemoved");
             LoadedModManager.GetMod<TrafficHeatmapMod>().Unsubscribe(this);
             foreach (var grid in this.pawnToCellCostGridMap.Values)
             {
@@ -267,10 +258,13 @@ namespace TrafficHeatmap
                 this.UpdatePawnMultiSelection(this.pawnToCellCostGridMap.Keys);
                 this.cellCostGridToDisplay = this.multiPawnsCellCostGrid;
             }
-            else if (selectedPawns.Count == 1 && this.cellCostGridToDisplay != this.pawnToCellCostGridMap[selectedPawns[0]])
+            else if (selectedPawns.Count == 1)
             {
-                this.cellCostGridToDisplay = this.pawnToCellCostGridMap[selectedPawns[0]];
-                this.cellBoolDrawer.SetDirty();
+                if (this.cellCostGridToDisplay != this.pawnToCellCostGridMap[selectedPawns[0]])
+                {
+                    this.cellCostGridToDisplay = this.pawnToCellCostGridMap[selectedPawns[0]];
+                    this.cellBoolDrawer.SetDirty();
+                }
             }
             else
             {

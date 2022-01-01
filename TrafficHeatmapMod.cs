@@ -37,7 +37,6 @@ namespace TrafficHeatmap
 
         public void Init()
         {
-            Log.Message($"Settings init. movingWindowSizeInDays={this.movingWindowSizeInDays}, sampleInterval={this.sampleInterval}");
             double windowSizeInTicks = this.movingWindowSizeInDays * GenDate.TicksPerDay;
             this.coefficient = 1f - (float)Math.Exp(-this.sampleInterval / windowSizeInTicks);
             this.minThreshold = (float)(20f / this.sampleInterval * this.coefficient * Math.Pow(1 - this.coefficient, windowSizeInTicks / this.sampleInterval));
@@ -46,6 +45,7 @@ namespace TrafficHeatmap
 
     public class TrafficHeatmapMod : Mod
     {
+        private string editBufferMovingWindowSizeInDays;
         HashSet<ISettingsObserver> observers = new HashSet<ISettingsObserver>();
         /// <summary>
         /// A reference to our settings.
@@ -70,10 +70,18 @@ namespace TrafficHeatmap
             Listing_Standard listingStandard = new Listing_Standard();
             listingStandard.Begin(inRect);
             listingStandard.Label($"Update interval: frequency of update in ticks. Smaller number will cause heatmap to update more frequently but can have negative impact on performance. Current: {this.settings.sampleInterval} (Default: {TrafficHeatmapModSettings.DefaultSampleInterval})");
-            this.settings.sampleInterval = (int)listingStandard.Slider(this.settings.sampleInterval, 1f, 1000f);
+            this.settings.sampleInterval = (int)listingStandard.Slider(this.settings.sampleInterval, 60f, 1000f);
             listingStandard.Label($"Look back window size: how many days to look back. Heatmap is generated based on (roughly) the average traffic in the past n days. (Default: {TrafficHeatmapModSettings.DefaultMovingWindowSize})");
-            string editBuffer = this.settings.movingWindowSizeInDays.ToString();
-            listingStandard.IntEntry(ref this.settings.movingWindowSizeInDays, ref editBuffer);
+            if (this.settings.movingWindowSizeInDays < 1)
+            {
+                this.settings.movingWindowSizeInDays = 1;
+            }
+            else if (this.settings.movingWindowSizeInDays > 60)
+            {
+                this.settings.movingWindowSizeInDays = 60;
+            }
+            this.editBufferMovingWindowSizeInDays = this.settings.movingWindowSizeInDays.ToString();
+            listingStandard.IntEntry(ref this.settings.movingWindowSizeInDays, ref this.editBufferMovingWindowSizeInDays);
             listingStandard.CheckboxLabeled($"Enhance infrequently visited areas: (Default: {TrafficHeatmapModSettings.DefaultEnhanceInfrequentlyVisitedAreas})", ref this.settings.enhanceInfrequentlyVisitedAreas, "When turned on, will enhance infrequetly visited areas.");
             listingStandard.End();
             base.DoSettingsWindowContents(inRect);

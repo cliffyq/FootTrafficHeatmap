@@ -24,7 +24,6 @@ namespace TrafficHeatmap
 
         private void UpdateFromSettings(TrafficHeatmapModSettings settings)
         {
-            Log.Message($"MinMaxScalingNormalizer update from settings. t = {settings.minThreshold}, enhanceInfrequentlyVisitedAreas = {settings.enhanceInfrequentlyVisitedAreas}");
             this.minThreshold = settings.minThreshold;
             this.scalingMethod = settings.enhanceInfrequentlyVisitedAreas ? ScalingMethod.SquareRoot : ScalingMethod.Linear;
         }
@@ -94,20 +93,12 @@ namespace TrafficHeatmap
             this.UpdateFromSettings(settings);
         }
 
-        ~MinMaxScalingNormalizer()
-        {
-            Log.Error("GC: MinMaxScalingNormalizer");
-            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
-            this.Dispose(disposing: false);
-        }
-
         protected override void Dispose(bool disposing)
         {
             if (!this.disposedValue)
             {
                 if (disposing)
                 {
-                    Log.Error("Disposing Normalizer");
                     LoadedModManager.GetMod<TrafficHeatmapMod>().Unsubscribe(this);
                 }
 
