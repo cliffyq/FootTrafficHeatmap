@@ -61,15 +61,16 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ISettingsObserver.cs" />
     <Compile Include="MinMaxScalingNormalizer.cs" />
-    <Compile Include="ModBase.cs" />
+    <Compile Include="TrafficHeatmapMod.cs" />
     <Compile Include="CellCostGrid.cs" />
     <Compile Include="GridNormalizer.cs" />
     <Compile Include="PatchPlaySettings.cs" />
     <Compile Include="Patch.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Resources.cs" />
-    <Compile Include="TrafficHeatmapMinMax.cs" />
+    <Compile Include="TrafficHeatmapSqrt.cs" />
     <Compile Include="TrafficHeatmap.cs" />
   </ItemGroup>
   <ItemGroup>

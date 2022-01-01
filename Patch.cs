@@ -22,12 +22,18 @@ namespace TrafficHeatmap
                         (urgency != LocomotionUrgency.Amble && urgency != LocomotionUrgency.Walk))
                     {
                         var heatmap = ___pawn.Map.GetComponent<TrafficHeatmap>();
+                        var heatmapInstance = TrafficHeatmap.Instances[___pawn.Map];
+                        if (heatmapInstance != heatmap)
+                        {
+                            Log.Error("2 instances?");
+                        }
                         heatmap.Update(___pawn, ___nextCellCostTotal);
-                        var heatmap1 = ___pawn.Map.GetComponent<TrafficHeatmapMinMax>();
-                        heatmap1.Update(___pawn, ___nextCellCostTotal);
+                        //var heatmap1 = ___pawn.Map.GetComponent<TrafficHeatmapSqrt>();
+                        //heatmap1.Update(___pawn, ___nextCellCostTotal);
+
+                        Log.Message($"SetupMoveIntoNextCell. Pawn: {___pawn}, heatmap: {heatmap.ToString()}");
                     }
                 }
-                //Log.Message($"SetupMoveIntoNextCell. Pawn: {___pawn}, curJobDef: {___pawn.CurJobDef.defName}, pawn position : {___pawn.Position}, locamotionUrgency: {GetLocomotionUrgency(___pawn)}, last cell: {___lastCell}, next cell: {___nextCell}, next cell cost total: {___nextCellCostTotal}, tick:{Find.TickManager.TicksGame}");
             }
         }
 

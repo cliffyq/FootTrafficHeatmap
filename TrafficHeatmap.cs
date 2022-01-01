@@ -3,25 +3,22 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
-using RimWorld;
 using UnityEngine;
 using Verse;
 
 namespace TrafficHeatmap
 {
-    public class TrafficHeatmap : MapComponent, ICellBoolGiver
+    public class TrafficHeatmap : MapComponent, ICellBoolGiver, ISettingsObserver
     {
         public static bool ShowHeatMap, ShowHeatMapCost;
         private readonly CellBoolDrawer cellBoolDrawer;
-        private readonly float coefficient;
+        private float coefficient;
         private readonly int numGridCells;
-        private readonly int sampleInterval = 180;
-        private readonly float forgetThreshold;
-        private readonly int windowSizeTicks = GenDate.TicksPerDay;
+        private int sampleInterval = 180;
+        private float threshold;
         private double cellBoolDrawerUpdateAvgTicks, updateAvgTicks, globalFalloffAvgTicks, setDisplayTicks;
         private int cellBoolDrawerUpdateCount, updateCount, globalFalloffCount;
         private CellCostGrid cellCostGridToDisplay;
-        private int forgetInDays = 1;
         private Gradient gradient;
         private int lastGlobalDecayTick;
         private CellCostGrid multiPawnsCellCostGrid;
@@ -30,17 +27,41 @@ namespace TrafficHeatmap
         private Stopwatch sw = new Stopwatch();
         private List<CellCostGrid> tmpCellCostGrids;
         private List<Pawn> tmpPawns;
+        internal static Dictionary<Map, TrafficHeatmap> Instances { get; } = new Dictionary<Map, TrafficHeatmap>();
 
         public TrafficHeatmap(Map map) : base(map)
         {
-            this.cellBoolDrawer = new CellBoolDrawer(this, map.Size.x, map.Size.z);
-            this.gradient = this.GetGradient();
+            if (!Instances.ContainsKey(map))
+            {
+                Instances[map] = this;
+                this.cellBoolDrawer = new CellBoolDrawer(this, map.Size.x, map.Size.z);
+                var mod = LoadedModManager.GetMod<TrafficHeatmapMod>();
+                mod.Subscribe(this);
+                this.UpdateFromSettings(mod.GetSettings<TrafficHeatmapModSettings>());
+                this.gradient = this.GetGradient();
+                this.numGridCells = this.map.cellIndices.NumGridCells;
+                this.multiPawnsCellCostGrid = new CellCostGrid(map);
+                this.cellCostGridToDisplay = this.multiPawnsCellCostGrid;
+            }
+            else
+            {
+                Log.Message("TrafficHeatmap instance already exisit");
+            }
+        }
+
+        ~TrafficHeatmap()
+        {
+            Log.Error("TrafficHeatmap GC");
+        }
+
+        private void UpdateFromSettings(TrafficHeatmapModSettings settings)
+        {
             // Use exponential moving average to calculate average cost over the moving window, see https://en.wikipedia.org/wiki/Moving_average#Application_to_measuring_computer_performance
-            this.coefficient = 1f - (float)Math.Exp(-(double)this.sampleInterval / this.windowSizeTicks);
-            this.forgetThreshold = (float)(20f / this.sampleInterval * this.coefficient * Math.Pow(1 - this.coefficient, (double)this.forgetInDays * GenDate.TicksPerDay / this.sampleInterval));
-            this.numGridCells = this.map.cellIndices.NumGridCells;
-            this.multiPawnsCellCostGrid = new CellCostGrid(map, this.forgetThreshold);
-            this.cellCostGridToDisplay = this.multiPawnsCellCostGrid;
+            this.coefficient = settings.coefficient;
+            this.threshold = settings.minThreshold;
+            this.sampleInterval = settings.sampleInterval;
+            this.cellBoolDrawer.SetDirty();
+            Log.Message($"Trafficheatmp update from settings. C= {settings.coefficient}, t = {settings.minThreshold}, si = {settings.sampleInterval}");
         }
 
         public Color Color => Color.white;
@@ -53,7 +74,7 @@ namespace TrafficHeatmap
 
         public bool GetCellBool(int index)
         {
-            return this.cellCostGridToDisplay.GetRawCost(index) > this.forgetThreshold;
+            return this.cellCostGridToDisplay.GetRawCost(index) > this.threshold;
         }
 
         public Color GetCellExtraColor(int index)
@@ -69,7 +90,7 @@ namespace TrafficHeatmap
             {
                 for (int i = 0; i < this.numGridCells; i++)
                 {
-                    if (this.cellCostGridToDisplay.GetRawCost(i) > this.forgetThreshold)
+                    if (this.GetCellBool(i))
                     {
                         float cost = this.cellCostGridToDisplay.GetNormalizedCost(i);
                         // TODO: center text when camera is close, see DebugDrawerOnGUI()
@@ -86,10 +107,22 @@ namespace TrafficHeatmap
                        $"Update avg ticks: {this.updateAvgTicks:N0}\n" +
                        $"GlobalDecay avg ticks: {this.globalFalloffAvgTicks:N0}\n" +
                        $"Set display ticks: {this.setDisplayTicks}\n" +
-                       $"threshold: {this.forgetThreshold}\n" +
+                       $"threshold: {this.threshold}\n" +
                        $"Selected pawns: {String.Join(", ", Find.Selector.SelectedPawns)}\n");
         }
 #endif
+        public override void MapRemoved()
+        {
+            base.MapRemoved();
+            Log.Message("Heatmap MapRemoved");
+            this.map = null;
+            LoadedModManager.GetMod<TrafficHeatmapMod>().Unsubscribe(this);
+            foreach (var grid in this.pawnToCellCostGridMap.Values)
+            {
+                grid.Dispose();
+            }
+            this.pawnToCellCostGridMap.Clear();
+        }
 
         public override void MapComponentTick()
         {
@@ -122,7 +155,11 @@ namespace TrafficHeatmap
             {
                 foreach (var pawn in toRemove)
                 {
-                    this.pawnToCellCostGridMap.Remove(pawn);
+                    if (this.pawnToCellCostGridMap.TryGetValue(pawn, out var grid))
+                    {
+                        grid.Dispose();
+                        this.pawnToCellCostGridMap.Remove(pawn);
+                    }
                     this.multiPawnsToDisplayFor.Remove(pawn);
                 }
                 this.cellBoolDrawer.SetDirty();
@@ -152,7 +189,7 @@ namespace TrafficHeatmap
             int index = this.map.cellIndices.CellToIndex(pawn.Position);
             if (!this.pawnToCellCostGridMap.TryGetValue(pawn, out CellCostGrid gridForCurPawn))
             {
-                gridForCurPawn = new CellCostGrid(this.map, this.forgetThreshold);
+                gridForCurPawn = new CellCostGrid(this.map);
                 this.pawnToCellCostGridMap.Add(pawn, gridForCurPawn);
             }
             float costToAdd = cost / this.sampleInterval * this.coefficient;
@@ -259,6 +296,11 @@ namespace TrafficHeatmap
                 }
                 this.cellBoolDrawer.SetDirty();
             }
+        }
+
+        public void OnSettingsChanged(TrafficHeatmapModSettings settings)
+        {
+            this.UpdateFromSettings(settings);
         }
     }
 }

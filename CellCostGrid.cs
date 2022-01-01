@@ -3,27 +3,37 @@ using Verse;
 
 namespace TrafficHeatmap
 {
-    public class CellCostGrid : IExposable
+    public class CellCostGrid : IExposable, ISettingsObserver, IDisposable
     {
+        private bool disposedValue;
         private float[] grid;
         private Map map;
+        private float threshold;
         private byte[] tmpByteArrayForScribe;
-
         public CellCostGrid()
         {
-            // Need a param-less ctor for scribe
+            this.Normalizer = new MinMaxScalingNormalizer();
         }
 
-        public CellCostGrid(Map map, float threshold)
+        public CellCostGrid(Map map)
         {
             this.map = map;
-            this.Threshold = threshold; // TODO: get it from settings
             this.grid = new float[map.cellIndices.NumGridCells];
-            this.InitNormalizer();
+            this.Normalizer = new MinMaxScalingNormalizer();
+            var mod = LoadedModManager.GetMod<TrafficHeatmapMod>();
+            mod.Subscribe(this);
+            this.UpdateFromSettings(mod.GetSettings<TrafficHeatmapModSettings>());
+        }
+
+        // // TODO: override finalizer only if 'Dispose(bool disposing)' has code to free unmanaged resources
+        ~CellCostGrid()
+        {
+            Log.Error("GC: CellCostGrid");
+            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+            this.Dispose(disposing: false);
         }
 
         public GridNormalizer Normalizer { get; set; }
-        public float Threshold { get; set; }
 
         public void AddRawCost(int index, float cost)
         {
@@ -41,7 +51,7 @@ namespace TrafficHeatmap
         {
             for (int i = 0; i < this.grid.Length; i++)
             {
-                if (this.grid[i] > this.Threshold)
+                if (this.grid[i] > this.threshold)
                 {
                     this.grid[i] *= decayCoefficient;
                 }
@@ -49,24 +59,21 @@ namespace TrafficHeatmap
             this.Normalizer.OnMultiplyAll(decayCoefficient);
         }
 
+        public void Dispose()
+        {
+            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+            this.Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
+
         public void ExposeData()
         {
             Scribe_References.Look(ref this.map, "map");
 
             this.ExposeGrid();
-
-            if (Scribe.mode == LoadSaveMode.PostLoadInit)
-            {
-                this.InitNormalizer();
-            }
         }
 
-        private void InitNormalizer()
-        {
-            this.Normalizer = new MinMaxScalingNormalizer(this.Threshold);
-        }
-
-        // Return a normalized cost between 0 and 1, or -1 if the raw cost is below threshold
+        // Returns a normalized cost between 0 and 1, or -1 if the raw cost is below threshold
         public float GetNormalizedCost(int index)
         {
             if (this.Normalizer != null)
@@ -83,6 +90,28 @@ namespace TrafficHeatmap
         public float GetRawCost(int index)
         {
             return this.grid[index];
+        }
+
+        public void OnSettingsChanged(TrafficHeatmapModSettings settings)
+        {
+            this.UpdateFromSettings(settings);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!this.disposedValue)
+            {
+                if (disposing)
+                {
+                    Log.Error("Disposing CellCostGrid");
+                    LoadedModManager.GetMod<TrafficHeatmapMod>().Unsubscribe(this);
+                    this.Normalizer.Dispose();
+                }
+
+                // TODO: free unmanaged resources (unmanaged objects) and override finalizer
+                // TODO: set large fields to null
+                this.disposedValue = true;
+            }
         }
 
         private static ushort CellCostFloatToShort(float val)
@@ -142,6 +171,12 @@ namespace TrafficHeatmap
                 val = 1f;
             }
             return val;
+        }
+
+        private void UpdateFromSettings(TrafficHeatmapModSettings settings)
+        {
+            Log.Message($"CostGrid update from settings. C= {settings.coefficient}, t = {settings.minThreshold}, si = {settings.sampleInterval}");
+            this.threshold = settings.minThreshold;
         }
     }
 }

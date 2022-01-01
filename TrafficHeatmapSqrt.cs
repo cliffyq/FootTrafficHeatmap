@@ -9,7 +9,7 @@
 
 //namespace TrafficHeatmap
 //{
-//    public class TrafficHeatmapMinMax : MapComponent, ICellBoolGiver
+//    public class TrafficHeatmapSqrt : MapComponent, ICellBoolGiver
 //    {
 //        public static bool ShowHeatMap, ShowHeatMapCost;
 //        private readonly CellBoolDrawer cellBoolDrawer;
@@ -17,33 +17,28 @@
 //        private readonly int numGridCells;
 //        private readonly int sampleInterval = 180;
 //        private readonly float forgetThreshold;
-//        private readonly int windowSizeTicks = GenDate.TicksPerDay;
-//        private double cellBoolDrawerUpdateAvgTicks, updateAvgTicks, globalFalloffAvgTicks, dirtyUpdateAvgTicks, setDisplayTicks;
-//        private int cellBoolDrawerUpdateCount, updateCount, globalFalloffCount, dirtyUpdateCount;
-//        private float[] cellCostGridToDisplay;
-//        private bool dirty;
-//        private int forgetInDays = 1;
+//        private readonly int windowSizeTicks = 3 * GenDate.TicksPerDay;
+//        private double cellBoolDrawerUpdateAvgTicks, updateAvgTicks, globalFalloffAvgTicks, setDisplayTicks;
+//        private int cellBoolDrawerUpdateCount, updateCount, globalFalloffCount;
+//        private CellCostGrid cellCostGridToDisplay;
 //        private Gradient gradient;
 //        private int lastGlobalDecayTick;
-//        private float maxCost, minCost;
-//        private float[] multiPawnsCellCostGrid;
+//        private CellCostGrid multiPawnsCellCostGrid;
 //        private HashSet<Pawn> multiPawnsToDisplayFor = new HashSet<Pawn>();
 //        private Dictionary<Pawn, CellCostGrid> pawnToCellCostGridMap = new Dictionary<Pawn, CellCostGrid>();
 //        private Stopwatch sw = new Stopwatch();
 //        private List<CellCostGrid> tmpCellCostGrids;
 //        private List<Pawn> tmpPawns;
 
-//        public TrafficHeatmapMinMax(Map map) : base(map)
+//        public TrafficHeatmapSqrt(Map map) : base(map)
 //        {
 //            this.cellBoolDrawer = new CellBoolDrawer(this, map.Size.x, map.Size.z);
 //            this.gradient = this.GetGradient();
 //            // Use exponential moving average to calculate average cost over the moving window, see https://en.wikipedia.org/wiki/Moving_average#Application_to_measuring_computer_performance
 //            this.coefficient = 1f - (float)Math.Exp(-(double)this.sampleInterval / this.windowSizeTicks);
-//            this.forgetThreshold = (float)(20f / this.sampleInterval * this.coefficient * Math.Pow(1 - this.coefficient, (double)this.forgetInDays * GenDate.TicksPerDay / this.sampleInterval));
-//            this.maxCost = this.forgetThreshold;
-//            this.minCost = 1f;
+//            this.forgetThreshold = (float)(20f / this.sampleInterval * this.coefficient * Math.Pow(1 - this.coefficient, (double)this.windowSizeTicks / this.sampleInterval));
 //            this.numGridCells = this.map.cellIndices.NumGridCells;
-//            this.multiPawnsCellCostGrid = new float[this.numGridCells];
+//            this.multiPawnsCellCostGrid = new CellCostGrid(map, this.forgetThreshold, ScalingMethod.SquareRoot);
 //            this.cellCostGridToDisplay = this.multiPawnsCellCostGrid;
 //        }
 
@@ -57,31 +52,14 @@
 
 //        public bool GetCellBool(int index)
 //        {
-//            return this.cellCostGridToDisplay[index] > this.forgetThreshold;
+//            return this.cellCostGridToDisplay.GetRawCost(index) > this.forgetThreshold;
 //        }
 
 //        public Color GetCellExtraColor(int index)
 //        {
-//            return this.GetColorForCost(this.cellCostGridToDisplay[index]);
+//            return this.GetColorForNormalizedCost(this.cellCostGridToDisplay.GetNormalizedCost(index));
 //        }
 
-//        float Normalize(float cost)
-//        {
-//            float normalized;
-//            if (cost <= this.minCost)
-//            {
-//                normalized = 0;
-//            }
-//            else if (cost >= this.maxCost)
-//            {
-//                normalized = 1;
-//            }
-//            else
-//            {
-//                normalized = (cost - this.minCost) / (this.maxCost - this.minCost);
-//            }
-//            return normalized;
-//        }
 //#if DEBUG
 //        public override void MapComponentOnGUI()
 //        {
@@ -90,13 +68,14 @@
 //            {
 //                for (int i = 0; i < this.numGridCells; i++)
 //                {
-//                    float cost = this.cellCostGridToDisplay[i];
-//                    if (cost > this.forgetThreshold)
-//                    {// TODO: center text when camera is close, see DebugDrawerOnGUI()
+//                    if (this.cellCostGridToDisplay.GetRawCost(i) > this.forgetThreshold)
+//                    {
+//                        float cost = this.cellCostGridToDisplay.GetNormalizedCost(i);
+//                        // TODO: center text when camera is close, see DebugDrawerOnGUI()
 //                        var cell = this.map.cellIndices.IndexToCell(i);
 //                        var drawTopLeft = GenMapUI.LabelDrawPosFor(cell);
 //                        var labelRect = new Rect(drawTopLeft.x - 20f, drawTopLeft.y, 40f, 20f);
-//                        Widgets.Label(labelRect, this.Normalize(cost).ToString());
+//                        Widgets.Label(labelRect, cost.ToString());
 //                    }
 //                }
 //            }
@@ -105,8 +84,6 @@
 //                       $"{this.GetType().Name}(down) CellBoolDrawerUpdate avg ticks: {this.cellBoolDrawerUpdateAvgTicks:N0}\n" +
 //                       $"Update avg ticks: {this.updateAvgTicks:N0}\n" +
 //                       $"GlobalDecay avg ticks: {this.globalFalloffAvgTicks:N0}\n" +
-//                       $"Max cost: {this.maxCost}, Min cost: {minCost}\n" +
-//                       $"Dirty upgrade avg: {this.dirtyUpdateAvgTicks}\n" +
 //                       $"Set display ticks: {this.setDisplayTicks}\n" +
 //                       $"threshold: {this.forgetThreshold}\n" +
 //                       $"Selected pawns: {String.Join(", ", Find.Selector.SelectedPawns)}\n");
@@ -119,6 +96,7 @@
 //            int curTick = Find.TickManager.TicksGame;
 //            if (curTick >= this.lastGlobalDecayTick + this.sampleInterval)
 //            {
+//                this.RemoveInvalidPawns();
 //                this.sw.Restart();
 //                this.GlobalDecay();
 //                this.lastGlobalDecayTick = curTick;
@@ -127,8 +105,6 @@
 //                var ticks = this.sw.ElapsedTicks;
 //                double coefficient = (double)1 / (++this.globalFalloffCount);
 //                this.globalFalloffAvgTicks = this.globalFalloffAvgTicks * (1 - coefficient) + coefficient * ticks;
-
-//                this.RemoveInvalidPawns();
 //            }
 //            //if (curTick % GenDate.TicksPerHour == 0)
 //            //{
@@ -139,7 +115,7 @@
 
 //        private void RemoveInvalidPawns()
 //        {
-//            var toRemove = this.pawnToCellCostGridMap.Keys.Where(pawn => !pawn.IsColonist || pawn.Dead);
+//            IEnumerable<Pawn> toRemove = this.pawnToCellCostGridMap.Keys.Where(pawn => !pawn.IsColonist || pawn.Dead);
 
 //            if (toRemove.Any())
 //            {
@@ -148,7 +124,7 @@
 //                    this.pawnToCellCostGridMap.Remove(pawn);
 //                    this.multiPawnsToDisplayFor.Remove(pawn);
 //                }
-//                this.SetDirty();
+//                this.cellBoolDrawer.SetDirty();
 //            }
 //        }
 
@@ -159,7 +135,6 @@
 //            if (ShowHeatMap)
 //            {
 //                this.SetCellCostGridToDisplay();
-//                this.UpdateDisplay();
 //                this.sw.Restart();
 //                this.cellBoolDrawer.MarkForDraw();
 //                this.cellBoolDrawer.CellBoolDrawerUpdate();
@@ -176,54 +151,21 @@
 //            int index = this.map.cellIndices.CellToIndex(pawn.Position);
 //            if (!this.pawnToCellCostGridMap.TryGetValue(pawn, out CellCostGrid gridForCurPawn))
 //            {
-//                gridForCurPawn = new CellCostGrid(this.map);
+//                gridForCurPawn = new CellCostGrid(this.map, this.forgetThreshold, ScalingMethod.SquareRoot);
 //                this.pawnToCellCostGridMap.Add(pawn, gridForCurPawn);
 //            }
 //            float costToAdd = cost / this.sampleInterval * this.coefficient;
-//            gridForCurPawn.Grid[index] += costToAdd;
+//            gridForCurPawn.AddRawCost(index, costToAdd);
 //            if (this.multiPawnsToDisplayFor.Contains(pawn))
 //            {
-//                this.multiPawnsCellCostGrid[index] += costToAdd;
+//                this.multiPawnsCellCostGrid.AddRawCost(index, costToAdd);
 //            }
 //            this.sw.Stop();
 //            var ticks = this.sw.ElapsedTicks;
 //            double coefficient1 = (double)1 / (++this.updateCount);
 //            this.updateAvgTicks = this.updateAvgTicks * (1 - coefficient1) + coefficient1 * ticks;
 
-//            this.SetDirty();
-//        }
-
-//        private void UpdateDisplay()
-//        {
-//            if (this.dirty)
-//            {
-//                this.sw.Restart();
-//                this.dirty = false;
-//                float max = 0;
-//                float min = 1f;
-//                foreach (float i in this.cellCostGridToDisplay)
-//                {
-//                    if (i > this.forgetThreshold)
-//                    {
-//                        if (i > max)
-//                        {
-//                            max = i;
-//                        }
-//                        else if (i < min)
-//                        {
-//                            min = i;
-//                        }
-//                    }
-//                }
-//                this.maxCost = max;
-//                this.minCost = min;
-//                this.cellBoolDrawer.SetDirty();
-
-//                this.sw.Stop();
-//                var ticks = this.sw.ElapsedTicks;
-//                double coefficient = (double)1 / (++this.dirtyUpdateCount);
-//                this.dirtyUpdateAvgTicks = this.dirtyUpdateAvgTicks * (1 - coefficient) + coefficient * ticks;
-//            }
+//            this.cellBoolDrawer.SetDirty();
 //        }
 
 //        //private void DumpStats()
@@ -237,9 +179,10 @@
 //        //    File.WriteAllLines($@"C:\Users\lixinqin\AppData\LocalLow\Ludeon Studios\RimWorld by Ludeon Studios\multi-{curTick}.txt", this.multiPawnsCellCostGrid.Where(f => f > this.forgetThreshold).Select(f => f.ToString()));
 //        //}
 
-//        private Color GetColorForCost(float cost)
+//        private Color GetColorForNormalizedCost(float cost)
 //        {
-//            return this.gradient.Evaluate(this.Normalize(cost));
+
+//            return this.gradient.Evaluate(cost);
 //        }
 
 //        private Gradient GetGradient()
@@ -269,18 +212,12 @@
 //        private void GlobalDecay()
 //        {
 //            float decayCoefficient = 1 - this.coefficient;
-//            IEnumerable<float[]> grids = this.pawnToCellCostGridMap.Values.Select(val => val.Grid).Concat(this.multiPawnsCellCostGrid);
+//            IEnumerable<CellCostGrid> grids = this.pawnToCellCostGridMap.Values.Concat(this.multiPawnsCellCostGrid);
 //            Parallel.ForEach(grids, grid =>
 //            {
-//                for (int i = 0; i < this.numGridCells; i++)
-//                {
-//                    if (grid[i] > this.forgetThreshold)
-//                    {
-//                        grid[i] *= decayCoefficient;
-//                    }
-//                }
+//                grid.Decay(decayCoefficient);
 //            });
-//            this.SetDirty();
+//            this.cellBoolDrawer.SetDirty();
 //        }
 
 //        private void SetCellCostGridToDisplay()
@@ -292,10 +229,10 @@
 //                this.UpdatePawnMultiSelection(this.pawnToCellCostGridMap.Keys);
 //                this.cellCostGridToDisplay = this.multiPawnsCellCostGrid;
 //            }
-//            else if (selectedPawns.Count == 1 && this.cellCostGridToDisplay != this.pawnToCellCostGridMap[selectedPawns[0]].Grid)
+//            else if (selectedPawns.Count == 1 && this.cellCostGridToDisplay != this.pawnToCellCostGridMap[selectedPawns[0]])
 //            {
-//                this.cellCostGridToDisplay = this.pawnToCellCostGridMap[selectedPawns[0]].Grid;
-//                this.SetDirty();
+//                this.cellCostGridToDisplay = this.pawnToCellCostGridMap[selectedPawns[0]];
+//                this.cellBoolDrawer.SetDirty();
 //            }
 //            else
 //            {
@@ -306,25 +243,20 @@
 //            this.setDisplayTicks = this.sw.ElapsedTicks;
 //        }
 
-//        private void SetDirty()
-//        {
-//            this.dirty = true;
-//        }
-
 //        private void UpdatePawnMultiSelection(IEnumerable<Pawn> selected)
 //        {
 //            if (!this.multiPawnsToDisplayFor.SetEquals(selected))
 //            {
 //                this.multiPawnsToDisplayFor = selected.ToHashSet();
-//                Array.Clear(this.multiPawnsCellCostGrid, 0, this.numGridCells);
+//                this.multiPawnsCellCostGrid.Clear();
 //                foreach (Pawn pawn in selected)
 //                {
 //                    for (int i = 0; i < this.numGridCells; i++)
 //                    {
-//                        this.multiPawnsCellCostGrid[i] += this.pawnToCellCostGridMap[pawn].Grid[i];
+//                        this.multiPawnsCellCostGrid.AddRawCost(i, this.pawnToCellCostGridMap[pawn].GetRawCost(i));
 //                    }
 //                }
-//                this.SetDirty();
+//                this.cellBoolDrawer.SetDirty();
 //            }
 //        }
 //    }

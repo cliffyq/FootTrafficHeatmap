@@ -3,15 +3,30 @@ using Verse;
 
 namespace TrafficHeatmap
 {
-    public class MinMaxScalingNormalizer : GridNormalizer
+    public enum ScalingMethod
     {
-        private float min = 1f;
-        private float max = 0f;
-        private float minThreshold;
+        Linear, SquareRoot
+    }
 
-        public MinMaxScalingNormalizer(float minThreshold)
+    public class MinMaxScalingNormalizer : GridNormalizer, ISettingsObserver
+    {
+        protected float min = 1f;
+        protected float max = 0f;
+        protected float minThreshold;
+        protected ScalingMethod scalingMethod;
+
+        public MinMaxScalingNormalizer()
         {
-            this.minThreshold = minThreshold;
+            var mod = LoadedModManager.GetMod<TrafficHeatmapMod>();
+            mod.Subscribe(this);
+            this.UpdateFromSettings(mod.GetSettings<TrafficHeatmapModSettings>());
+        }
+
+        private void UpdateFromSettings(TrafficHeatmapModSettings settings)
+        {
+            Log.Message($"MinMaxScalingNormalizer update from settings. t = {settings.minThreshold}, enhanceInfrequentlyVisitedAreas = {settings.enhanceInfrequentlyVisitedAreas}");
+            this.minThreshold = settings.minThreshold;
+            this.scalingMethod = settings.enhanceInfrequentlyVisitedAreas ? ScalingMethod.SquareRoot : ScalingMethod.Linear;
         }
 
         public override float Normalize(float value)
@@ -33,22 +48,23 @@ namespace TrafficHeatmap
             else
             {
                 normalized = (value - this.min) / (this.max - this.min);
+                if (this.scalingMethod == ScalingMethod.SquareRoot)
+                {
+                    normalized = (float)Math.Sqrt(normalized);
+                }
             }
             return normalized;
         }
 
         public override void OnUpdateSingleValue(float value)
         {
-            if (value > this.minThreshold)
+            if (value < this.min)
             {
-                if (value < this.min)
-                {
-                    this.min = value;
-                }
-                else if (value > this.max)
-                {
-                    this.max = value;
-                }
+                this.min = Math.Max(this.minThreshold, value);
+            }
+            if (value > this.max)
+            {
+                this.max = value;
             }
         }
 
@@ -71,6 +87,34 @@ namespace TrafficHeatmap
         {
             this.min = 1f;
             this.max = 0f;
+        }
+
+        public void OnSettingsChanged(TrafficHeatmapModSettings settings)
+        {
+            this.UpdateFromSettings(settings);
+        }
+
+        ~MinMaxScalingNormalizer()
+        {
+            Log.Error("GC: MinMaxScalingNormalizer");
+            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+            this.Dispose(disposing: false);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (!this.disposedValue)
+            {
+                if (disposing)
+                {
+                    Log.Error("Disposing Normalizer");
+                    LoadedModManager.GetMod<TrafficHeatmapMod>().Unsubscribe(this);
+                }
+
+                // TODO: free unmanaged resources (unmanaged objects) and override finalizer
+                // TODO: set large fields to null
+                this.disposedValue = true;
+            }
         }
     }
 }
