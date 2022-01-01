@@ -1,12 +1,15 @@
 ﻿using HarmonyLib;
+using UnityEngine;
 using Verse;
 
 namespace TrafficHeatmap
 {
     [StaticConstructorOnStartup]
-    public class Test
+    public class Resources
     {
-        static Test()
+        public static readonly Texture2D Icon = ContentFinder<Texture2D>.Get("icon");
+
+        static Resources()
         {
 #if DEBUG
             Harmony.DEBUG = true;

@@ -53,19 +53,23 @@
     </Reference>
     <Reference Include="UnityEngine.IMGUIModule">
       <HintPath>..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\RimWorld\RimWorldWin64_Data\Managed\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.TextRenderingModule">
       <HintPath>..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\RimWorld\RimWorldWin64_Data\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>False</Private>
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="MinMaxScalingNormalizer.cs" />
+    <Compile Include="ModBase.cs" />
     <Compile Include="CellCostGrid.cs" />
+    <Compile Include="GridNormalizer.cs" />
     <Compile Include="PatchPlaySettings.cs" />
     <Compile Include="Patch.cs" />
-    <Compile Include="Test.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="TrafficHeatmapFixedSampleRate.cs" />
-    <Compile Include="TrafficHeatmapFixedUpdate.cs" />
+    <Compile Include="Resources.cs" />
+    <Compile Include="TrafficHeatmapMinMax.cs" />
     <Compile Include="TrafficHeatmap.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -80,14 +84,22 @@
     <None Include="packages.config" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <Target Name="CopyToModFolder" AfterTargets="Build">
+  <PropertyGroup>
+    <RimworldSteamAppFolder>$(MSBuildProgramFiles32)\Steam\steamapps\common\RimWorld</RimworldSteamAppFolder>
+  </PropertyGroup>
+  <Target Name="RimworldNotFound" Condition="!Exists($(RimworldSteamAppFolder))" AfterTargets="Build">
+    <Warning Text="Can't install mod because Rimworld installation folder is not detected, please update the RimworldSteamAppFolder in csproj file." />
+  </Target>
+  <Target Name="CopyToModFolder" Condition="Exists($(RimworldSteamAppFolder))" AfterTargets="Build">
     <PropertyGroup>
-      <ModFolder>$(MSBuildProgramFiles32)\Steam\steamapps\common\RimWorld\Mods\$(MSBuildProjectName)</ModFolder>
+      <ModFolder>$(RimworldSteamAppFolder)\Mods\$(MSBuildProjectName)</ModFolder>
     </PropertyGroup>
     <ItemGroup>
       <ModData Include="ModData\**\*.*" />
     </ItemGroup>
+    <Message Text="Copying mod data to folder: $(ModFolder)" Importance="high" />
     <RemoveDir Directories="$(ModFolder)" />
     <Copy SourceFiles="@(ModData)" DestinationFiles="@(ModData->'$(ModFolder)\%(RecursiveDir)%(Filename)%(Extension)')" />
+    <Message Text="Done" Importance="high" />
   </Target>
 </Project>
