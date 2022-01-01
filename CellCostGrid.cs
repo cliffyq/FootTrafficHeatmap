@@ -142,6 +142,7 @@ namespace TrafficHeatmap
                     this.grid[this.map.cellIndices.CellToIndex(c)] = CellCostGrid.CellCostShortToFloat(val);
                 });
                 this.tmpByteArrayForScribe = null;
+                this.Normalizer.RecalculateStats(this.grid);
             }
         }
 

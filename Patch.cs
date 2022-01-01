@@ -10,7 +10,7 @@ namespace TrafficHeatmap
     {
         [HarmonyPostfix]
         [HarmonyPatch("SetupMoveIntoNextCell")]
-        static void Postfix(Pawn ___pawn, bool ___moving, float ___nextCellCostLeft, IntVec3 ___lastCell, IntVec3 ___nextCell, float ___nextCellCostTotal)
+        private static void Postfix(Pawn ___pawn, bool ___moving, float ___nextCellCostLeft, IntVec3 ___lastCell, IntVec3 ___nextCell, float ___nextCellCostTotal)
         {
             if (___pawn.IsColonist && !___pawn.Dead && !___pawn.Downed && ___pawn.Awake())
             {
@@ -23,25 +23,9 @@ namespace TrafficHeatmap
                     {
                         var heatmap = ___pawn.Map.GetComponent<TrafficHeatmap>();
                         heatmap.Update(___pawn, ___nextCellCostTotal);
-                        //var heatmap1 = ___pawn.Map.GetComponent<TrafficHeatmapSqrt>();
-                        //heatmap1.Update(___pawn, ___nextCellCostTotal);
                     }
                 }
             }
-        }
-
-        static string GetLocomotionUrgency(Pawn pawn)
-        {
-            if (pawn.CurJob == null)
-            {
-                return "NoCurJob";
-            }
-            Pawn locomotionUrgencySameAs = pawn.jobs.curDriver.locomotionUrgencySameAs;
-            if (locomotionUrgencySameAs != null && locomotionUrgencySameAs != pawn && locomotionUrgencySameAs.Spawned)
-            {
-                return $"(Same as {locomotionUrgencySameAs.ToString()}){GetLocomotionUrgency(locomotionUrgencySameAs)}";
-            }
-            return pawn.jobs.curJob.locomotionUrgency.ToString();
         }
     }
 }

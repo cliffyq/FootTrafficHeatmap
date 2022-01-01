@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <ModMetaData>
-    <name>Traffic Heatmap</name>
+    <name>Foot Traffic Heatmap</name>
     <author>Cliffyq</author>
     <packageId>Cliffyq.TrafficHeatmap</packageId>
     <description>Show traffic heatmap</description>

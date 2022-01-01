@@ -10,8 +10,8 @@ namespace TrafficHeatmap
 
     public class MinMaxScalingNormalizer : GridNormalizer, ISettingsObserver
     {
-        protected float min = 1f;
         protected float max = 0f;
+        protected float min = 1f;
         protected float minThreshold;
         protected ScalingMethod scalingMethod;
 
@@ -22,10 +22,10 @@ namespace TrafficHeatmap
             this.UpdateFromSettings(mod.GetSettings<TrafficHeatmapModSettings>());
         }
 
-        private void UpdateFromSettings(TrafficHeatmapModSettings settings)
+        public override void ClearStats()
         {
-            this.minThreshold = settings.minThreshold;
-            this.scalingMethod = settings.enhanceInfrequentlyVisitedAreas ? ScalingMethod.SquareRoot : ScalingMethod.Linear;
+            this.min = 1f;
+            this.max = 0f;
         }
 
         public override float Normalize(float value)
@@ -55,6 +55,17 @@ namespace TrafficHeatmap
             return normalized;
         }
 
+        public override void OnMultiplyAll(float coefficient)
+        {
+            this.min = Math.Max(this.min * coefficient, this.minThreshold);
+            this.max = Math.Max(this.max * coefficient, this.minThreshold);
+        }
+
+        public void OnSettingsChanged(TrafficHeatmapModSettings settings)
+        {
+            this.UpdateFromSettings(settings);
+        }
+
         public override void OnUpdateSingleValue(float value)
         {
             if (value < this.min)
@@ -63,14 +74,8 @@ namespace TrafficHeatmap
             }
             if (value > this.max)
             {
-                this.max = value;
+                this.max = Math.Max(this.minThreshold, value);
             }
-        }
-
-        public override void OnMultiplyAll(float coefficient)
-        {
-            this.min = Math.Max(this.min * coefficient, this.minThreshold);
-            this.max = Math.Max(this.max * coefficient, this.minThreshold);
         }
 
         public override void RecalculateStats(float[] grid)
@@ -80,17 +85,6 @@ namespace TrafficHeatmap
             {
                 this.OnUpdateSingleValue(value);
             }
-        }
-
-        public override void ClearStats()
-        {
-            this.min = 1f;
-            this.max = 0f;
-        }
-
-        public void OnSettingsChanged(TrafficHeatmapModSettings settings)
-        {
-            this.UpdateFromSettings(settings);
         }
 
         protected override void Dispose(bool disposing)
@@ -106,6 +100,12 @@ namespace TrafficHeatmap
                 // TODO: set large fields to null
                 this.disposedValue = true;
             }
+        }
+
+        private void UpdateFromSettings(TrafficHeatmapModSettings settings)
+        {
+            this.minThreshold = settings.minThreshold;
+            this.scalingMethod = settings.enhanceLessVisitedAreas ? ScalingMethod.SquareRoot : ScalingMethod.Linear;
         }
     }
 }

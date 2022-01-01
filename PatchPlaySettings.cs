@@ -5,10 +5,10 @@ using Verse;
 namespace TrafficHeatmap
 {
     [HarmonyPatch(typeof(PlaySettings), "DoPlaySettingsGlobalControls")]
-    static class PatchPlaySettings
+    internal static class PatchPlaySettings
     {
         [HarmonyPostfix]
-        static void PostFix(WidgetRow row, bool worldView)
+        private static void PostFix(WidgetRow row, bool worldView)
         {
             if (worldView)
                 return;
@@ -16,14 +16,10 @@ namespace TrafficHeatmap
             if (row == null || Resources.Icon == null)
                 return;
 
-            row.ToggleableIcon(ref TrafficHeatmap.ShowHeatMap, Resources.Icon, "String_ShowHeatMap1", SoundDefOf.Mouseover_ButtonToggle);
-
-            row.ToggleableIcon(ref TrafficHeatmap.ShowHeatMapCost, Resources.Icon, "String_ShowHeatMapCost1", SoundDefOf.Mouseover_ButtonToggle);
-
-            //row.ToggleableIcon(ref TrafficHeatmapSqrt.ShowHeatMap, Resources.Icon, "String_ShowHeatMap2", SoundDefOf.Mouseover_ButtonToggle);
-
-            //row.ToggleableIcon(ref TrafficHeatmapSqrt.ShowHeatMapCost, Resources.Icon, "String_ShowHeatMapCost2", SoundDefOf.Mouseover_ButtonToggle);
-
+            row.ToggleableIcon(ref TrafficHeatmap.ShowHeatMap, Resources.Icon, "Show Foot Traffic Heatmap", SoundDefOf.Mouseover_ButtonToggle);
+#if DEBUG
+            row.ToggleableIcon(ref TrafficHeatmap.ShowHeatMapCost, Resources.Icon, "Show Cell Cost", SoundDefOf.Mouseover_ButtonToggle);
+#endif
         }
     }
 }

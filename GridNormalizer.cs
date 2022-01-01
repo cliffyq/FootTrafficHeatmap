@@ -6,16 +6,23 @@ namespace TrafficHeatmap
     {
         protected bool disposedValue;
 
+        public abstract void ClearStats();
+
+        public void Dispose()
+        {
+            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+            this.Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
+
         // Normalizes value to a float between 0 and 1
         public abstract float Normalize(float value);
-        public abstract void ClearStats();
+
+        public abstract void OnMultiplyAll(float coefficient);
+
+        public abstract void OnUpdateSingleValue(float cost);
+
         public abstract void RecalculateStats(float[] grid);
-
-        public virtual void OnUpdateSingleValue(float cost)
-        { }
-
-        public virtual void OnMultiplyAll(float coefficient)
-        { }
 
         protected virtual void Dispose(bool disposing)
         {
@@ -38,12 +45,5 @@ namespace TrafficHeatmap
         //     // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
         //     Dispose(disposing: false);
         // }
-
-        public void Dispose()
-        {
-            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
-            this.Dispose(disposing: true);
-            GC.SuppressFinalize(this);
-        }
     }
 }
