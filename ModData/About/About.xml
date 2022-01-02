@@ -17,7 +17,7 @@
       -Approximately, a single visit(by a colonist with average speed, on normal terrain) will gradually fade out and disappear in N days.
       -By default, color scale is adjusted to enhance display for less visited areas so the color differences among them are more prominent. This can be turned off in settings, to show the color linear to the actual traffic amount.
     </description>
-    <url>https://github.com/cliffyq/TrafficHeatmap</url>
+    <url>https://github.com/cliffyq/FootTrafficHeatmap</url>
     <supportedVersions>
         <li>1.3</li>
     </supportedVersions>
