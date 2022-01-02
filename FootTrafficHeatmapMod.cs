@@ -6,14 +6,14 @@ using Verse;
 
 namespace TrafficHeatmap
 {
-    public class TrafficHeatmapMod : Mod
+    public class FootTrafficHeatmapMod : Mod
     {
         private string editBufferMovingWindowSizeInDays;
         private HashSet<ISettingsObserver> observers = new HashSet<ISettingsObserver>();
 
         private TrafficHeatmapModSettings settings;
 
-        public TrafficHeatmapMod(ModContentPack content) : base(content)
+        public FootTrafficHeatmapMod(ModContentPack content) : base(content)
         {
             this.settings = this.GetSettings<TrafficHeatmapModSettings>();
         }

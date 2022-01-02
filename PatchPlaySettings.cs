@@ -16,7 +16,7 @@ namespace TrafficHeatmap
             if (row == null || Resources.Icon == null)
                 return;
 
-            row.ToggleableIcon(ref TrafficHeatmap.ShowHeatMap, Resources.Icon, "Show Foot Traffic Heatmap", SoundDefOf.Mouseover_ButtonToggle);
+            row.ToggleableIcon(ref FootTrafficHeatmap.ShowHeatMap, Resources.Icon, "Show Foot Traffic Heatmap", SoundDefOf.Mouseover_ButtonToggle);
 #if DEBUG
             row.ToggleableIcon(ref TrafficHeatmap.ShowHeatMapCost, Resources.Icon, "Show Cell Cost", SoundDefOf.Mouseover_ButtonToggle);
 #endif

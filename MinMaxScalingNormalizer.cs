@@ -17,7 +17,7 @@ namespace TrafficHeatmap
 
         public MinMaxScalingNormalizer()
         {
-            var mod = LoadedModManager.GetMod<TrafficHeatmapMod>();
+            var mod = LoadedModManager.GetMod<FootTrafficHeatmapMod>();
             mod.Subscribe(this);
             this.UpdateFromSettings(mod.GetSettings<TrafficHeatmapModSettings>());
         }
@@ -93,7 +93,7 @@ namespace TrafficHeatmap
             {
                 if (disposing)
                 {
-                    LoadedModManager.GetMod<TrafficHeatmapMod>().Unsubscribe(this);
+                    LoadedModManager.GetMod<FootTrafficHeatmapMod>().Unsubscribe(this);
                 }
 
                 // TODO: free unmanaged resources (unmanaged objects) and override finalizer

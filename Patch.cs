@@ -21,7 +21,7 @@ namespace TrafficHeatmap
                     if ((locomotionUrgencySameAs != null && locomotionUrgencySameAs != ___pawn && locomotionUrgencySameAs.Spawned) ||
                         (urgency != LocomotionUrgency.Amble && urgency != LocomotionUrgency.Walk))
                     {
-                        var heatmap = ___pawn.Map.GetComponent<TrafficHeatmap>();
+                        var heatmap = ___pawn.Map.GetComponent<FootTrafficHeatmap>();
                         heatmap.Update(___pawn, ___nextCellCostTotal);
                     }
                 }

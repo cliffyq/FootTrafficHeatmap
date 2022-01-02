@@ -21,7 +21,7 @@ namespace TrafficHeatmap
             this.map = map;
             this.grid = new float[map.cellIndices.NumGridCells];
             this.Normalizer = new MinMaxScalingNormalizer();
-            var mod = LoadedModManager.GetMod<TrafficHeatmapMod>();
+            var mod = LoadedModManager.GetMod<FootTrafficHeatmapMod>();
             mod.Subscribe(this);
             this.UpdateFromSettings(mod.GetSettings<TrafficHeatmapModSettings>());
         }
@@ -96,7 +96,7 @@ namespace TrafficHeatmap
             {
                 if (disposing)
                 {
-                    LoadedModManager.GetMod<TrafficHeatmapMod>().Unsubscribe(this);
+                    LoadedModManager.GetMod<FootTrafficHeatmapMod>().Unsubscribe(this);
                     this.Normalizer.Dispose();
                 }
 

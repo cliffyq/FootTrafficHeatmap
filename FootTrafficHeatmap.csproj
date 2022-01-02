@@ -63,14 +63,14 @@
   <ItemGroup>
     <Compile Include="ISettingsObserver.cs" />
     <Compile Include="MinMaxScalingNormalizer.cs" />
-    <Compile Include="TrafficHeatmapMod.cs" />
+    <Compile Include="FootTrafficHeatmapMod.cs" />
     <Compile Include="CellCostGrid.cs" />
     <Compile Include="GridNormalizer.cs" />
     <Compile Include="PatchPlaySettings.cs" />
     <Compile Include="Patch.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Resources.cs" />
-    <Compile Include="TrafficHeatmap.cs" />
+    <Compile Include="FootTrafficHeatmap.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="ModData\About\About.xml" />
@@ -97,8 +97,14 @@
     <ItemGroup>
       <ModData Include="ModData\**\*.*" />
     </ItemGroup>
+    <ItemGroup>
+      <ToDelete
+         Include="$(ModFolder)\**\*.*"
+         Exclude="$(ModFolder)\About\PublishedFileId.txt"
+         />
+    </ItemGroup>
     <Message Text="Copying mod data to folder: $(ModFolder)" Importance="high" />
-    <RemoveDir Directories="$(ModFolder)" />
+    <Delete Files="@(ToDelete)" />
     <Copy SourceFiles="@(ModData)" DestinationFiles="@(ModData->'$(ModFolder)\%(RecursiveDir)%(Filename)%(Extension)')" />
     <Message Text="Done" Importance="high" />
   </Target>
