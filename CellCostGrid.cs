@@ -3,7 +3,7 @@ using Verse;
 
 namespace TrafficHeatmap
 {
-    public class CellCostGrid : IExposable, ISettingsObserver, IDisposable
+    public class CellCostGrid : IExposable, ISettingsObserver
     {
         private bool disposedValue;
         private float[] grid;
@@ -97,7 +97,10 @@ namespace TrafficHeatmap
                 if (disposing)
                 {
                     LoadedModManager.GetMod<FootTrafficHeatmapMod>().Unsubscribe(this);
-                    this.Normalizer.Dispose();
+                    if (this.Normalizer is ISettingsObserver observer)
+                    {
+                        observer.Dispose();
+                    }
                 }
 
                 // TODO: free unmanaged resources (unmanaged objects) and override finalizer

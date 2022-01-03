@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -12,13 +13,14 @@ namespace TrafficHeatmap
         private CellBoolDrawer cellBoolDrawer;
         private CellCostGrid cellCostGridToDisplay;
         private float coefficient;
+        private bool disposedValue;
         private Gradient gradient;
         private int lastGlobalDecayTick;
         private CellCostGrid multiPawnsCellCostGrid;
-        private HashSet<Pawn> multiPawnsToDisplayFor = new HashSet<Pawn>();
+        private HashSet<Pawn> multiPawnsToDisplayFor;
         private int numGridCells;
-        private Dictionary<Pawn, CellCostGrid> pawnToCellCostGridMap = new Dictionary<Pawn, CellCostGrid>();
-        private int sampleInterval = 180;
+        private Dictionary<Pawn, CellCostGrid> pawnToCellCostGridMap;
+        private int sampleInterval;
         private float threshold;
         private List<CellCostGrid> tmpCellCostGrids;
         private List<Pawn> tmpPawns;
@@ -26,18 +28,28 @@ namespace TrafficHeatmap
         public FootTrafficHeatmap(Map map) : base(map)
         {
             Log.Message($"TrafficHeatmap ctor {this.GetHashCode()}");
+            // Only init fields that are needed before ExposeData here
         }
 
         public Color Color => Color.white;
 
+        public void Dispose()
+        {
+            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+            this.Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
+
         public override void ExposeData()
         {
             base.ExposeData();
+            Log.Message($"TrafficHeatmap ExposeData {this.GetHashCode()}, Scribe mode = {Scribe.mode}");
             Scribe_Collections.Look(ref this.pawnToCellCostGridMap, "pawnToCellCostGridMap", LookMode.Reference, LookMode.Deep, ref this.tmpPawns, ref this.tmpCellCostGrids);
         }
 
         public override void FinalizeInit()
         {
+            // Prefer initing fields here, except the ones that are needed before ExposeData
             base.FinalizeInit();
             Log.Message($"TrafficHeatmap FinalizeInit {this.GetHashCode()}");
             this.cellBoolDrawer = new CellBoolDrawer(this, this.map.Size.x, this.map.Size.z);
@@ -46,7 +58,18 @@ namespace TrafficHeatmap
             this.UpdateFromSettings(mod.GetSettings<TrafficHeatmapModSettings>());
             this.gradient = this.GetGradient();
             this.numGridCells = this.map.cellIndices.NumGridCells;
-            this.multiPawnsCellCostGrid = new CellCostGrid(this.map);
+            if (this.pawnToCellCostGridMap == null)
+            {
+                this.pawnToCellCostGridMap = new Dictionary<Pawn, CellCostGrid>();
+            }
+            if (this.multiPawnsCellCostGrid == null)
+            {
+                this.multiPawnsCellCostGrid = new CellCostGrid(this.map);
+            }
+            if (this.multiPawnsToDisplayFor == null)
+            {
+                this.multiPawnsToDisplayFor = new HashSet<Pawn>();
+            }
             this.cellCostGridToDisplay = this.multiPawnsCellCostGrid;
         }
 
@@ -84,40 +107,10 @@ namespace TrafficHeatmap
             }
         }
 
-#if DEBUG
-
-        public override void MapComponentOnGUI()
-        {
-            base.MapComponentOnGUI();
-            if (ShowHeatMapCost)
-            {
-                for (int i = 0; i < this.numGridCells; i++)
-                {
-                    if (this.GetCellBool(i))
-                    {
-                        float cost = this.cellCostGridToDisplay.GetNormalizedCost(i);
-                        // TODO: center text when camera is close, see DebugDrawerOnGUI()
-                        var cell = this.map.cellIndices.IndexToCell(i);
-                        var drawTopLeft = GenMapUI.LabelDrawPosFor(cell);
-                        var labelRect = new Rect(drawTopLeft.x - 20f, drawTopLeft.y - 20f, 40f, 20f);
-                        Widgets.Label(labelRect, cost.ToString());
-                    }
-                }
-            }
-        }
-
-#endif
-
         public override void MapRemoved()
         {
             base.MapRemoved();
-            Log.Message("Traffic Heatmap MapRemoved");
-            LoadedModManager.GetMod<FootTrafficHeatmapMod>().Unsubscribe(this);
-            foreach (var grid in this.pawnToCellCostGridMap.Values)
-            {
-                grid.Dispose();
-            }
-            this.pawnToCellCostGridMap.Clear();
+            this.Dispose();
         }
 
         public void OnSettingsChanged(TrafficHeatmapModSettings settings)
@@ -142,6 +135,51 @@ namespace TrafficHeatmap
 
             this.cellBoolDrawer.SetDirty();
         }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!this.disposedValue)
+            {
+                if (disposing)
+                {
+                    LoadedModManager.GetMod<FootTrafficHeatmapMod>().Unsubscribe(this);
+                    foreach (var grid in this.pawnToCellCostGridMap.Values)
+                    {
+                        grid.Dispose();
+                    }
+                    this.pawnToCellCostGridMap.Clear();
+                    this.multiPawnsCellCostGrid.Dispose();
+                }
+
+                // TODO: free unmanaged resources (unmanaged objects) and override finalizer
+                // TODO: set large fields to null
+                this.disposedValue = true;
+            }
+        }
+
+#if DEBUG
+
+        public override void MapComponentOnGUI()
+        {
+            base.MapComponentOnGUI();
+            if (ShowHeatMapCost)
+            {
+                for (int i = 0; i < this.numGridCells; i++)
+                {
+                    if (this.GetCellBool(i))
+                    {
+                        float cost = this.cellCostGridToDisplay.GetNormalizedCost(i);
+                        // TODO: center text when camera is close, see DebugDrawerOnGUI()
+                        var cell = this.map.cellIndices.IndexToCell(i);
+                        var drawTopLeft = GenMapUI.LabelDrawPosFor(cell);
+                        var labelRect = new Rect(drawTopLeft.x - 20f, drawTopLeft.y - 20f, 40f, 20f);
+                        Widgets.Label(labelRect, cost.ToString());
+                    }
+                }
+            }
+        }
+
+#endif
 
         private Color GetColorForNormalizedCost(float cost)
         {
@@ -234,6 +272,7 @@ namespace TrafficHeatmap
             this.sampleInterval = settings.sampleInterval;
             this.cellBoolDrawer.SetDirty();
         }
+
         private void UpdatePawnMultiSelection(IEnumerable<Pawn> selected)
         {
             if (!this.multiPawnsToDisplayFor.SetEquals(selected))

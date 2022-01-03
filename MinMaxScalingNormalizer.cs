@@ -14,6 +14,7 @@ namespace TrafficHeatmap
         protected float min = 1f;
         protected float minThreshold;
         protected ScalingMethod scalingMethod;
+        private bool disposedValue;
 
         public MinMaxScalingNormalizer()
         {
@@ -87,7 +88,7 @@ namespace TrafficHeatmap
             }
         }
 
-        protected override void Dispose(bool disposing)
+        protected virtual void Dispose(bool disposing)
         {
             if (!this.disposedValue)
             {
@@ -106,6 +107,20 @@ namespace TrafficHeatmap
         {
             this.minThreshold = settings.minThreshold;
             this.scalingMethod = settings.enhanceLessVisitedAreas ? ScalingMethod.SquareRoot : ScalingMethod.Linear;
+        }
+
+        // // TODO: override finalizer only if 'Dispose(bool disposing)' has code to free unmanaged resources
+        // ~MinMaxScalingNormalizer()
+        // {
+        //     // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+        //     Dispose(disposing: false);
+        // }
+
+        public void Dispose()
+        {
+            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+            this.Dispose(disposing: true);
+            GC.SuppressFinalize(this);
         }
     }
 }

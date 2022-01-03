@@ -10,7 +10,7 @@ namespace TrafficHeatmap
     {
         [HarmonyPostfix]
         [HarmonyPatch("SetupMoveIntoNextCell")]
-        private static void Postfix(Pawn ___pawn, bool ___moving, float ___nextCellCostLeft, IntVec3 ___lastCell, IntVec3 ___nextCell, float ___nextCellCostTotal)
+        private static void Postfix(Pawn ___pawn, float ___nextCellCostTotal)
         {
             if (___pawn.IsColonist && !___pawn.Dead && !___pawn.Downed && ___pawn.Awake())
             {
