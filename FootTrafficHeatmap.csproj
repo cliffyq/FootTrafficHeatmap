@@ -71,6 +71,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Resources.cs" />
     <Compile Include="FootTrafficHeatmap.cs" />
+    <Compile Include="TrafficHeatmapModSettings.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="LICENSE.txt" />
