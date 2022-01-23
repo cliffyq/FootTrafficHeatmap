@@ -15,6 +15,12 @@ namespace TrafficHeatmap
         public float minThreshold;
         public int movingWindowSizeInDays = DefaultMovingWindowSize;
         public int sampleInterval = DefaultSampleInterval;
+        public int globalDecayMode;
+        
+        public TrafficHeatmapModSettings()
+        {
+            Init();
+        }
 
         public override void ExposeData()
         {

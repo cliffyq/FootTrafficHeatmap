@@ -158,10 +158,16 @@ namespace TrafficHeatmap
         }
 
 #if DEBUG
-
         public override void MapComponentOnGUI()
         {
             base.MapComponentOnGUI();
+            IntVec3 pos = UI.MouseCell();
+            int index = map.cellIndices.CellToIndex(pos);
+            TerrainDef terrain = pos.GetTerrain(map);
+            string gridToDisplay = cellCostGridToDisplay == multiPawnsCellCostGrid ? "Multi" : "SelectedPawn";
+            Widgets.Label(new Rect(10, Screen.height * 1 / 3f, 300, 300),
+                           $"GridToDisplay: {gridToDisplay}\n" +
+                           $"Normalizer: {cellCostGridToDisplay.Normalizer.GetDebugString()}\n");
             if (ShowHeatMapCost)
             {
                 for (int i = 0; i < this.numGridCells; i++)
@@ -174,11 +180,12 @@ namespace TrafficHeatmap
                         var drawTopLeft = GenMapUI.LabelDrawPosFor(cell);
                         var labelRect = new Rect(drawTopLeft.x - 20f, drawTopLeft.y - 20f, 40f, 20f);
                         Widgets.Label(labelRect, cost.ToString());
+                        var labelRectBot = new Rect(drawTopLeft.x - 20f, drawTopLeft.y, 40f, 20f);
+                        Widgets.Label(labelRectBot, cellCostGridToDisplay.GetRawCost(i).ToString());
                     }
                 }
             }
         }
-
 #endif
 
         private Color GetColorForNormalizedCost(float cost)

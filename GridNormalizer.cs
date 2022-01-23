@@ -12,5 +12,7 @@
         public abstract void OnUpdateSingleValue(float cost);
 
         public abstract void RecalculateStats(float[] grid);
+
+        public abstract string GetDebugString();
     }
 }

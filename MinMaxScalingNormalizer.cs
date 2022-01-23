@@ -69,13 +69,10 @@ namespace TrafficHeatmap
 
         public override void OnUpdateSingleValue(float value)
         {
-            if (value < this.min)
+            if (value >= this.minThreshold)
             {
-                this.min = Math.Max(this.minThreshold, value);
-            }
-            if (value > this.max)
-            {
-                this.max = Math.Max(this.minThreshold, value);
+                this.min = Math.Min(this.min, value);
+                this.max = Math.Max(this.max, value);
             }
         }
 
@@ -121,6 +118,11 @@ namespace TrafficHeatmap
             // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
             this.Dispose(disposing: true);
             GC.SuppressFinalize(this);
+        }
+
+        public override string GetDebugString()
+        {
+            return $"Min:{min}, Max: {max}, MinThreshold: {minThreshold}, Hash:{this.GetHashCode()}";
         }
     }
 }

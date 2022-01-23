@@ -44,10 +44,7 @@ namespace TrafficHeatmap
         {
             for (int i = 0; i < this.grid.Length; i++)
             {
-                if (this.grid[i] > this.threshold)
-                {
-                    this.grid[i] *= decayCoefficient;
-                }
+                grid[i] *= decayCoefficient;
             }
             this.Normalizer.OnMultiplyAll(decayCoefficient);
         }
